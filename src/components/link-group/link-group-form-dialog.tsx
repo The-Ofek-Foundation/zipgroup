@@ -18,16 +18,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DynamicUrlInput } from "./dynamic-url-input";
-import LucideIcon from "@/components/icons/lucide-icon";
-import { Loader2, Wand2 } from "lucide-react";
-import { suggestIcon } from "@/ai/flows/suggest-icon"; // AI function
+import { IconPickerInput } from "./icon-picker-input"; // New component
+// Removed: Loader2, Wand2, suggestIcon, useToast (if only for suggestIcon)
+// useToast might still be used by the parent component or for other form actions, so keep it for now.
 import { useToast } from "@/hooks/use-toast";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
+// Tooltip components are used by IconPickerInput internally or can be removed if not used elsewhere in this file
+// For now, keeping TooltipProvider at a higher level (page.tsx) is fine.
 
 const linkGroupSchema = z.object({
   name: z.string().min(1, "Group name is required"),
-  icon: z.string().min(1, "Icon name is required"),
+  icon: z.string().min(1, "Icon name is required. Please pick one."),
   urls: z.array(z.string().url("Invalid URL format")).min(1, "At least one URL is required"),
 });
 
@@ -46,16 +46,15 @@ export function LinkGroupFormDialog({
   onSubmit,
   initialData,
 }: LinkGroupFormDialogProps) {
-  const { toast } = useToast();
-  const [isSuggestingIcon, setIsSuggestingIcon] = useState(false);
+  const { toast } = useToast(); // Kept in case of future use or if parent needs it
 
   const {
     control,
     register,
     handleSubmit,
     reset,
-    watch,
-    setValue,
+    // watch, // watch("icon") and watch("name") no longer needed for this component directly
+    // setValue, // setValue("icon") is now handled by Controller
     formState: { errors },
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
@@ -66,8 +65,8 @@ export function LinkGroupFormDialog({
     },
   });
 
-  const groupName = watch("name");
-  const iconName = watch("icon");
+  // const groupName = watch("name"); // No longer needed for AI suggestion trigger
+  // const iconName = watch("icon"); // The IconPickerInput will display its own preview
 
   useEffect(() => {
     if (initialData) {
@@ -79,7 +78,7 @@ export function LinkGroupFormDialog({
     } else {
       reset({
         name: "",
-        icon: "Package",
+        icon: "Package", // Reset to default
         urls: [""],
       });
     }
@@ -90,48 +89,13 @@ export function LinkGroupFormDialog({
       id: initialData?.id || crypto.randomUUID(),
       ...data,
     });
-    onClose();
+    onClose(); // This will also trigger reset due to useEffect dependency on isOpen
   };
 
-  const handleSuggestIcon = async () => {
-    if (!groupName) {
-      toast({
-        title: "Icon Suggestion",
-        description: "Please enter a group name first.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setIsSuggestingIcon(true);
-    try {
-      const result = await suggestIcon({ groupName });
-      if (result.iconName) {
-        setValue("icon", result.iconName, { shouldValidate: true });
-        toast({
-          title: "Icon Suggestion",
-          description: `Suggested icon: ${result.iconName}`,
-        });
-      } else {
-        toast({
-          title: "Icon Suggestion Failed",
-          description: "Could not suggest an icon.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error suggesting icon:", error);
-      toast({
-        title: "Icon Suggestion Error",
-        description: "An error occurred while suggesting an icon.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSuggestingIcon(false);
-    }
-  };
+  // Removed handleSuggestIcon and isSuggestingIcon state
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>{initialData ? "Edit" : "Create"} Link Group</DialogTitle>
@@ -139,33 +103,29 @@ export function LinkGroupFormDialog({
             {initialData ? "Modify your" : "Add a new"} link group to quickly open sets of URLs.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 py-4">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 py-4">
           <div>
             <Label htmlFor="name">Group Name</Label>
-            <Input id="name" {...register("name")} />
+            <Input id="name" {...register("name")} className="mt-1" />
             {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
           </div>
 
           <div>
-            <Label htmlFor="icon">Icon Name (Lucide)</Label>
-            <div className="flex items-center gap-2">
-              <Input id="icon" {...register("icon")} placeholder="e.g., Briefcase, Home, Settings" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button type="button" variant="outline" size="icon" onClick={handleSuggestIcon} disabled={isSuggestingIcon || !groupName} aria-label="Suggest Icon">
-                    {isSuggestingIcon ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Suggest icon using AI</p>
-                </TooltipContent>
-              </Tooltip>
-              <div className="p-2 border rounded-md bg-muted">
-                <LucideIcon name={iconName || "HelpCircle"} size={24} />
-              </div>
-            </div>
+            <Label htmlFor="icon-picker">Icon</Label>
+            <Controller
+              name="icon"
+              control={control}
+              render={({ field }) => (
+                <IconPickerInput
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
             {errors.icon && <p className="text-sm text-destructive mt-1">{errors.icon.message}</p>}
-             <p className="text-xs text-muted-foreground mt-1">Enter a <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide icon</a> name.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Search and select a <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide icon</a>.
+            </p>
           </div>
 
           <div>
@@ -175,11 +135,17 @@ export function LinkGroupFormDialog({
               control={control}
               render={({ field }) => <DynamicUrlInput urls={field.value} onChange={field.onChange} />}
             />
-            {errors.urls && <p className="text-sm text-destructive mt-1">{errors.urls.message || (errors.urls as any).root?.message}</p>}
-             {errors.urls?.map((error, index) => error && <p key={index} className="text-sm text-destructive mt-1">{`URL ${index + 1}: ${error.message}`}</p>)}
+            {errors.urls && (
+              <p className="text-sm text-destructive mt-1">
+                {typeof errors.urls.message === 'string' ? errors.urls.message : (errors.urls as any)?.root?.message}
+              </p>
+            )}
+            {Array.isArray(errors.urls) && errors.urls.map((error, index) => 
+              error && <p key={index} className="text-sm text-destructive mt-1">{`URL ${index + 1}: ${error.message}`}</p>
+            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
