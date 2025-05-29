@@ -7,8 +7,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { HomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react"; // Renamed Home to HomeIcon to avoid conflict with page component name
+import { DialogTrigger } from "@/components/ui/dialog"; // Keep for Tooltip + Button trigger pattern
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppData } from "@/hooks/use-app-data";
 import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
@@ -41,7 +42,7 @@ const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
 const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
 const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // Key used in sample/page.tsx
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
 
 interface StoredPage {
   hash: string;
@@ -75,7 +76,14 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
   };
 
   const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
-    e.stopPropagation();
+     if (e.type === "pointerdown") { // Be specific to pointerdown for drag
+      e.stopPropagation();
+    }
+  };
+
+  const handleDeleteConfirm = () => {
+    onDelete(page.hash);
+    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -139,7 +147,6 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
           )}
         </CardContent>
         <CardFooter className="pt-4 border-t flex justify-between items-center">
-          <TooltipProvider delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -157,46 +164,37 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
               </TooltipContent>
             </Tooltip>
 
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      aria-label={`Delete page ${page.title}`}
-                      // No onClick needed here for opening, DialogTrigger handles it
-                      // No onPointerDown needed here if dnd-kit activation constraint is used
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" /> Delete
-                    </Button>
-                  </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Delete page</p>
-                </TooltipContent>
-              </Tooltip>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Are you absolutely sure?</DialogTitle>
-                  <DialogDescription>
-                    This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
                   <Button
                     variant="destructive"
-                    onClick={() => { onDelete(page.hash); setIsDeleteDialogOpen(false); }}
+                    size="sm"
+                    aria-label={`Delete page ${page.title}`}
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    // onPointerDown is NOT stopped here to allow dnd-kit activation constraints to work
                   >
-                    Delete Page
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </TooltipProvider>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete page</p>
+              </TooltipContent>
+            </Tooltip>
         </CardFooter>
       </Card>
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Are you absolutely sure?"
+        description={
+          <>
+            This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
+          </>
+        }
+        onConfirm={handleDeleteConfirm}
+        confirmText="Delete Page"
+        confirmVariant="destructive"
+      />
     </div>
   );
 }
@@ -238,7 +236,7 @@ export function DashboardView() {
         DASHBOARD_ORDER_KEY,
         DASHBOARD_THEME_MODE_KEY,
         DASHBOARD_CUSTOM_COLOR_KEY,
-        JOYRIDE_SAMPLE_TAKEN_KEY // Explicitly exclude the Joyride key
+        JOYRIDE_SAMPLE_TAKEN_KEY 
       ];
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -246,7 +244,7 @@ export function DashboardView() {
         if (
           key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
-          !excludedKeys.includes(key) // Check against the excluded keys list
+          !excludedKeys.includes(key) 
         ) {
           try {
             const storedData = localStorage.getItem(key);
@@ -254,15 +252,12 @@ export function DashboardView() {
               const parsedData = JSON.parse(storedData) as AppData;
               const hash = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
 
-              // Check if the parsed data is a valid AppData object (e.g., by checking essential properties)
-              // This helps filter out keys that match the prefix but aren't actual page data.
               if (typeof parsedData.pageTitle !== 'string' || !Array.isArray(parsedData.linkGroups)) {
                 console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
                 continue;
               }
 
-
-              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `ZipGroup Page ${hash}`) {
+              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `New ZipGroup Page`) {
                 localStorage.removeItem(key);
                 initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
                 continue;
@@ -270,7 +265,7 @@ export function DashboardView() {
 
               allLoadedPages.push({
                 hash: hash,
-                title: parsedData.pageTitle || `ZipGroup Page ${hash}`,
+                title: parsedData.pageTitle || `New ZipGroup Page`,
                 linkGroupCount: parsedData.linkGroups?.length || 0,
                 theme: parsedData.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
                 customPrimaryColor: parsedData.customPrimaryColor,
@@ -453,7 +448,7 @@ export function DashboardView() {
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <div className="flex items-center gap-2">
-              <HomeIcon className="mr-2 h-6 w-6 text-primary" />
+              <PageHomeIcon className="mr-2 h-6 w-6 text-primary" />
               <h1 className="text-2xl font-semibold text-primary">
                 <span className="inline sm:hidden">ZG</span>
                 <span className="hidden sm:inline">ZipGroup</span>

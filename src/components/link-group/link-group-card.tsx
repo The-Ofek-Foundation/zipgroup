@@ -7,15 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import LucideIcon from "@/components/icons/lucide-icon";
 import { ExternalLink, Edit3, Trash2, Link as LinkIcon, AppWindow } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { DialogTrigger } from "@/components/ui/dialog"; // Keep for Tooltip + Button trigger pattern
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, normalizeUrl } from "@/lib/utils";
@@ -50,7 +43,7 @@ export function LinkGroupCard({
 
   const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
     // Only stop propagation if not read-only, to allow dnd-kit activation constraints to work for dialogs
-    if (!isReadOnlyPreview) {
+     if (!isReadOnlyPreview && e.type === "pointerdown") { // Be specific to pointerdown for drag
       e.stopPropagation();
     }
   };
@@ -96,6 +89,11 @@ export function LinkGroupCard({
       return;
     }
     onOpenInNewWindow(group);
+  };
+
+  const handleDeleteConfirm = () => {
+    onDelete(group);
+    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -183,42 +181,40 @@ export function LinkGroupCard({
             </TooltipContent>
           </Tooltip>
 
-          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    aria-label="Delete group"
-                    disabled={isReadOnlyPreview}
-                    // No onClick needed here for opening, DialogTrigger handles it
-                    // No onPointerDown needed here if dnd-kit activation constraint is used
-                    {...joyrideDeleteButtonProps}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete group</p>
-              </TooltipContent>
-            </Tooltip>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Are you sure?</DialogTitle>
-                <DialogDescription>
-                  This action cannot be undone. This will permanently delete the link group "{group.name}".
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
-                <Button variant="destructive" onClick={() => { onDelete(group); setIsDeleteDialogOpen(false); }}>Delete</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Tooltip>
+            <TooltipTrigger asChild>
+               <Button
+                variant="destructive"
+                size="icon"
+                aria-label="Delete group"
+                disabled={isReadOnlyPreview}
+                onClick={() => setIsDeleteDialogOpen(true)}
+                // onPointerDown is NOT stopped here to allow dnd-kit activation constraints to work
+                {...joyrideDeleteButtonProps}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Delete group</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </CardFooter>
+
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Are you sure?"
+        description={
+          <>
+            This action cannot be undone. This will permanently delete the link group "<strong>{group.name}</strong>".
+          </>
+        }
+        onConfirm={handleDeleteConfirm}
+        confirmText="Delete Group"
+        confirmVariant="destructive"
+      />
     </Card>
   );
 }
