@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from "react";
@@ -5,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
+import { CustomColorPicker } from "@/components/theme/custom-color-picker"; // Added
 import { Zap } from "lucide-react"; // Icon for LinkWarp
 
 interface AppHeaderProps {
@@ -53,8 +55,9 @@ export function AppHeader({ pageTitle, onPageTitleChange, onCreateNewPage }: App
             aria-label="Page Title"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1"> {/* Reduced gap for more buttons */}
           <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
+          <CustomColorPicker /> {/* Added */}
           <ThemeSwitcher />
         </div>
       </div>

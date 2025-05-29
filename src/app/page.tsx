@@ -24,6 +24,7 @@ export default function Home() {
     setTheme,
     createNewPage,
     currentHash,
+    setCustomPrimaryColor, // Added for theme provider if it needs to pass it down, though provider uses appData directly
   } = useAppData();
   
   const { toast } = useToast();
@@ -74,6 +75,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Skeleton className="h-9 w-24" />
               <Skeleton className="h-9 w-9 rounded-md" />
+              <Skeleton className="h-9 w-9 rounded-md" /> {/* For custom color picker */}
             </div>
           </div>
         </header>
@@ -130,8 +132,8 @@ export default function Home() {
 
   return (
     <ThemeProvider 
-      initialTheme={appData.theme} 
-      onThemeChange={setTheme}
+      appData={appData} // Pass the full appData object
+      onThemeChange={setTheme} // This is useAppData's setTheme for light/dark
     >
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
