@@ -58,9 +58,11 @@ function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('sharedData');
-          router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
+          // Clear the sharedData param from URL without affecting hash or other params
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.delete('sharedData');
+          router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
+
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -68,12 +70,13 @@ function ActualPageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-           const newUrl = new URL(window.location.href);
-           newUrl.searchParams.delete('sharedData');
-           router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
+           // Clear the sharedData param from URL
+           const currentUrl = new URL(window.location.href);
+           currentUrl.searchParams.delete('sharedData');
+           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true);
+      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found
     }
   }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
@@ -84,7 +87,8 @@ function ActualPageContent() {
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    createNewBlankPageAndRedirect, // For AppHeader "New Page"
+    // createNewBlankPageAndRedirect is now mainly for AppHeader "New Page" from an existing page
+    createNewBlankPageAndRedirect,
     currentHash,
     setCustomPrimaryColor,
   } = useAppData(initialSharedData);
@@ -93,6 +97,7 @@ function ActualPageContent() {
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
   const [localPageTitle, setLocalPageTitle] = useState("");
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
+
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -179,14 +184,8 @@ function ActualPageContent() {
   };
 
   const handleOpenNewPageInNewTab = () => {
-    if (!appData) return;
-    // This function should ideally call createNewBlankPageAndRedirect
-    // and then open window.location.origin + '/#' + newHash in a new tab.
-    // For now, let's simplify and just open a new blank page.
-    // The createNewBlankPageAndRedirect is designed for current tab redirection.
-    const newBlankHash = createNewBlankPageAndRedirect(); // This will redirect current tab, then open new one. Not ideal.
-                                                       // Let's make a simpler version for now.
-    const newUrl = `${window.location.origin}/`; // This will trigger new page creation on load
+    // This function is for the footer link. It should always open a new, blank page.
+    const newUrl = `${window.location.origin}/`; // Will trigger root redirect to a new blank page
     window.open(newUrl, '_blank');
   };
 
@@ -200,6 +199,7 @@ function ActualPageContent() {
       return;
     }
 
+    // Construct URL with query param before the hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -232,6 +232,7 @@ function ActualPageContent() {
 
  useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    // Construct the URL to clear params from, ensuring hash is included if present
     let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
@@ -246,20 +247,24 @@ function ActualPageContent() {
         });
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
 
-        router.replace(urlToClearParamsFrom, { scroll: false }); // Clear param first
-        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
+        // Clear query param first.
+        // The target URL for clearing should be the base path + hash.
+        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
+        router.replace(cleanPathWithHash, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Cleared query param, new URL target:", cleanPathWithHash);
+
 
         const [firstUrl, ...otherUrls] = group.urls.map(normalizeUrl);
 
         otherUrls.forEach(url => {
           try {
-            new URL(url);
+            new URL(url); // Validate URL
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
               toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000 });
             } else {
-              console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
+               console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
             }
           } catch (e) {
             console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
@@ -269,22 +274,25 @@ function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrl);
+            new URL(firstUrl); // Validate first URL
             console.log("[OpenInNewWindowEffect] Attempting to replace current tab with first URL:", firstUrl);
             window.location.replace(firstUrl);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000 });
+            // If first URL navigation fails, the URL is already cleaned.
           }
-        }, 250);
+        }, 250); // Short delay to allow other tabs to initiate opening
       } else if (group && group.urls.length === 0) {
         console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
-      } else if (group === undefined) {
+        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
+        router.replace(cleanPathWithHash, { scroll: false });
+      } else if (!group) { // Corrected condition: if group is undefined
         console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
+        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
+        router.replace(cleanPathWithHash, { scroll: false });
       }
     }
  }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
@@ -311,11 +319,8 @@ function ActualPageContent() {
     }
   };
 
-  // This page no longer handles the "pristine sample page" directly.
-  // It handles pages with a hash or shared data previews.
   const isSharedPreview = !currentHash && appData && !!initialSharedData;
-  const isReadOnlyPreview = isSharedPreview;
-
+  const isReadOnlyPreview = isSharedPreview; // Only shared page previews are read-only for now.
 
   if (isLoading || !appData || !sharedDataProcessed) {
     return <PageSkeletonForSuspense />;
@@ -354,13 +359,16 @@ function ActualPageContent() {
     setIsFormOpen(false);
   };
 
-  const handleSaveSharedPage = async () => {
+  const handleSaveCurrentDataAsNewPage = async () => { // Renamed for clarity
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); // This function in useAppData handles shared data correctly
+    // createNewPageFromAppData is designed to save current appData (whether pristine or shared)
+    const newHash = createNewPageFromAppData(); 
     if (newHash) {
       toast({
-        title: "Shared Page Saved!",
-        description: "The shared page is now part of your dashboard.",
+        title: isSharedPreview ? "Shared Page Saved!" : "Page Saved!",
+        description: isSharedPreview 
+          ? "The shared page is now part of your dashboard." 
+          : "This page is now saved to your dashboard.",
       });
     } else {
       toast({
@@ -380,12 +388,12 @@ function ActualPageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPageAndRedirect} // Use the redirecting version
+            onCreateNewPage={createNewBlankPageAndRedirect} // Standard "New Page" creates a blank one
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
             isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isSharedPreview} // Can share if saved & not preview
+            canShareCurrentPage={!!currentHash && !isSharedPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -399,6 +407,7 @@ function ActualPageContent() {
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
                 disabled={isReadOnlyPreview}
+                data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -411,6 +420,7 @@ function ActualPageContent() {
             {isSharedPreview && (
               <div
                 className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
+                data-joyride="interactive-sample-info" 
               >
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
@@ -420,9 +430,10 @@ function ActualPageContent() {
                   This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own.
                 </p>
                 <Button
-                  onClick={handleSaveSharedPage}
+                  onClick={handleSaveCurrentDataAsNewPage}
                   size="lg"
                   disabled={isSavingNewPage}
+                  data-joyride="save-pristine-page-button" 
                 >
                   {isSavingNewPage ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -436,40 +447,45 @@ function ActualPageContent() {
                 </p>
               </div>
             )}
-
-            {appData && !isReadOnlyPreview && (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEndLinkGroups}
-              >
-                <SortableContext
-                  items={appData.linkGroups.map(g => g.id)}
-                  strategy={rectSortingStrategy}
+            
+            {/* Render LinkGroupList if not a pristine page OR if it's a shared preview */}
+            {/* This ensures shared previews show their groups. */}
+            {/* If it's a pristine page that's now blank (redirected), this will show "Add New Group" button */}
+            {(currentHash || isSharedPreview) && appData && (
+              isReadOnlyPreview ? (
+                <LinkGroupList
+                  groups={appData.linkGroups}
+                  onAddGroup={handleAddGroup}
+                  onEditGroup={handleEditGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  onOpenGroup={handleOpenGroup}
+                  onOpenInNewWindow={handleOpenGroupInNewWindow}
+                  isReadOnlyPreview={true}
+                />
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEndLinkGroups}
                 >
-                  <LinkGroupList
-                    groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup}
-                    onEditGroup={handleEditGroup}
-                    onDeleteGroup={handleDeleteGroup}
-                    onOpenGroup={handleOpenGroup}
-                    onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false}
-                  />
-                </SortableContext>
-              </DndContext>
+                  <SortableContext
+                    items={appData.linkGroups.map(g => g.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <LinkGroupList
+                      groups={appData.linkGroups}
+                      onAddGroup={handleAddGroup}
+                      onEditGroup={handleEditGroup}
+                      onDeleteGroup={handleDeleteGroup}
+                      onOpenGroup={handleOpenGroup}
+                      onOpenInNewWindow={handleOpenGroupInNewWindow}
+                      isReadOnlyPreview={false}
+                    />
+                  </SortableContext>
+                </DndContext>
+              )
             )}
-             {appData && isReadOnlyPreview && ( // For shared page previews (shows groups but read-only)
-              <LinkGroupList
-                groups={appData.linkGroups}
-                onAddGroup={handleAddGroup}
-                onEditGroup={handleEditGroup}
-                onDeleteGroup={handleDeleteGroup}
-                onOpenGroup={handleOpenGroup}
-                onOpenInNewWindow={handleOpenGroupInNewWindow}
-                isReadOnlyPreview={true}
-              />
-            )}
+
           </main>
           <LinkGroupFormDialog
             isOpen={isFormOpen}
@@ -512,32 +528,33 @@ function ActualPageContent() {
   );
 }
 
-// This component handles the root path redirection.
+// This component handles the root path redirection or renders ActualPageContent.
 function RootRedirector() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { createNewBlankPageAndRedirect, isLoading: appDataIsLoading, appData } = useAppData();
-  const [isRedirecting, setIsRedirecting] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(true); // Start assuming redirect might happen
 
   useEffect(() => {
     // Ensure router is ready and we are on the client
     if (typeof window !== 'undefined' && router && !appDataIsLoading) {
-      const shouldRedirect = pathname === '/' && !window.location.hash && !searchParams.get('sharedData');
+      const hasHash = !!window.location.hash; // Check hash client-side
+      const hasSharedData = !!searchParams.get('sharedData');
+      const shouldRedirect = pathname === '/' && !hasHash && !hasSharedData;
       
       if (shouldRedirect) {
-        // console.log("RootRedirector: Attempting to redirect...");
+        console.log("RootRedirector: Attempting to redirect to new blank page...");
         createNewBlankPageAndRedirect();
-        // The redirect happens via router.push in the hook, so we just wait.
-        // setIsRedirecting will remain true until hash changes and content loads.
+        // isRedirecting remains true; page will show skeleton until redirect completes.
       } else {
         // console.log("RootRedirector: Not redirecting. Path:", pathname, "Hash:", window.location.hash, "SharedData:", searchParams.get('sharedData'));
         setIsRedirecting(false); // Conditions for redirect not met, allow content render
       }
     }
-  }, [router, searchParams, pathname, createNewBlankPageAndRedirect, appDataIsLoading, appData]); // Added appData to deps for re-evaluation if it loads late
+  }, [router, searchParams, pathname, createNewBlankPageAndRedirect, appDataIsLoading, appData]);
 
-  if (isRedirecting && pathname === '/' && !window.location.hash && !searchParams.get('sharedData')) {
+  if (isRedirecting) { // This will be true initially, and if a redirect is initiated.
     return <PageSkeletonForSuspense />;
   }
   return <ActualPageContent />;
@@ -580,3 +597,4 @@ export default function Home() {
     </Suspense>
   );
 }
+
