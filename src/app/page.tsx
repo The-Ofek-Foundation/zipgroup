@@ -5,7 +5,7 @@ import type React from "react";
 import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
-import { AppFooter } from "@/components/layout/app-footer"; 
+import { AppFooter } from "@/components/layout/app-footer";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
 import type { LinkGroup, AppData } from "@/lib/types";
@@ -53,10 +53,10 @@ import { CustomColorPicker } from "@/components/theme/custom-color-picker";
 import { hexToHslValues } from "@/lib/color-utils";
 
 
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Internal prefix, not changing
-const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order"; // Internal key, not changing
-const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode'; // Internal key, not changing
-const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color'; // Internal key, not changing
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
+const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
+const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
+const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
 
 
 interface StoredPage {
@@ -181,7 +181,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                       variant="destructive"
                       size="sm"
                       aria-label={`Delete page ${page.title}`}
-                      // onPointerDown removed for dnd-kit activation constraint
+                       // onPointerDown removed for dnd-kit activation constraint, click handled by DialogTrigger
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
@@ -218,9 +218,9 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
 
 function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true); 
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData(); 
+  const { createNewBlankPageAndRedirect } = useAppData();
 
   const {
     themeMode,
@@ -454,19 +454,36 @@ function DashboardView() {
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <div className="flex items-center gap-2">
               <HomeIcon className="mr-2 h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-semibold text-primary">ZipGroup</h1>
+              <h1 className="text-2xl font-semibold text-primary">
+                <span className="inline sm:hidden">ZG</span>
+                <span className="hidden sm:inline">ZipGroup</span>
+              </h1>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={handleCreateNewPage} size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create New Page
-              </Button>
-               <Button variant="outline" size="sm" asChild>
-                <Link href="/sample">
-                  <BookOpenCheck className="mr-2 h-4 w-4" />
-                  View Sample
-                </Link>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleCreateNewPage} size="sm" aria-label="New Page">
+                    <PlusCircle className="h-4 w-4 md:mr-2" />
+                    <span className="hidden md:inline">New Page</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Create New Page</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" asChild aria-label="View Sample Page">
+                    <Link href="/sample">
+                      <BookOpenCheck className="h-4 w-4 md:mr-2" />
+                       <span className="hidden md:inline">View Sample</span>
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                   <p>View Sample Page</p>
+                </TooltipContent>
+              </Tooltip>
               <CustomColorPicker
                 currentCustomColor={customPrimaryColor}
                 onSetCustomColor={setDashboardCustomPrimaryColor}
@@ -531,19 +548,14 @@ function ActualPageContent() {
 
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
   const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
-  const currentHashFromUrlRef = useRef<string | null>(null);
 
 
   useEffect(() => {
-     if (typeof window !== 'undefined') {
-      currentHashFromUrlRef.current = window.location.hash.substring(1).split('?')[0];
-    }
-
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
       const sharedDataParam = currentUrlSearchParams.get('sharedData');
 
-      if (sharedDataParam && !currentHashFromUrlRef.current) { 
+      if (sharedDataParam && !window.location.hash) {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
@@ -652,7 +664,7 @@ function ActualPageContent() {
   };
 
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-    if (!currentHash) {
+     if (!currentHash) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
       return;
     }
@@ -693,13 +705,13 @@ function ActualPageContent() {
 
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
-    
+    const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
-      router.replace(cleanPathWithHash, { scroll: false });
+      router.replace(urlToClearParamsFrom, { scroll: false });
       console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
 
       if (group && group.urls.length > 0) {
@@ -714,7 +726,7 @@ function ActualPageContent() {
 
         otherUrlsFull.forEach(url => {
           try {
-            new URL(url);
+            new URL(url); // Validate before opening
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
@@ -730,7 +742,7 @@ function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrlFull);
+            new URL(firstUrlFull); // Validate before navigating current tab
             console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
@@ -851,7 +863,7 @@ function ActualPageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview} 
+                disabled={isReadOnlyPreview}
                 data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
@@ -890,7 +902,7 @@ function ActualPageContent() {
                 <p className="text-sm text-muted-foreground mt-4">
                   Saving will create a new copy on your home, allowing you to edit and manage it.
                 </p>
-                 {!initialSharedData && (
+                 {!initialSharedData && ( // Only show tour button for pristine sample, not shared.
                   <Button variant="outline" size="lg" asChild className="mt-4 ml-3">
                      <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
@@ -914,12 +926,12 @@ function ActualPageContent() {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEndLinkGroups}
-                  disabled={isReadOnlyPreview}
+                  disabled={isReadOnlyPreview} // Though it should be false here
                 >
                   <SortableContext
                     items={appData.linkGroups.map(g => g.id)}
                     strategy={rectSortingStrategy}
-                    disabled={isReadOnlyPreview}
+                    disabled={isReadOnlyPreview} // Though it should be false here
                   >
                     <LinkGroupList
                       groups={appData.linkGroups}
@@ -928,7 +940,7 @@ function ActualPageContent() {
                       onDeleteGroup={handleDeleteGroup}
                       onOpenGroup={handleOpenGroup}
                       onOpenInNewWindow={handleOpenGroupInNewWindow}
-                      isReadOnlyPreview={false} 
+                      isReadOnlyPreview={false}
                     />
                   </SortableContext>
                 </DndContext>
@@ -981,18 +993,18 @@ function PageSkeletonForSuspense() {
 
 function PageRouter() {
   const searchParams = useSearchParams();
-  const pathname = usePathname(); 
+  const pathname = usePathname();
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
-  const [clientSideCheckDone, setClientSideCheckDone] = useState(false); 
+  const [clientSideCheckDone, setClientSideCheckDone] = useState(false);
 
   useEffect(() => {
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        setRenderMode('loading'); // Should not happen if Suspense handles initial client-side
+        setRenderMode('loading');
         return;
       }
 
-      const hash = window.location.hash.substring(1).split('?')[0];
+      const hash = window.location.hash.substring(1).split('?')[0]; // Clean hash
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
       const sharedData = currentUrlSearchParams.get('sharedData');
 
@@ -1004,17 +1016,15 @@ function PageRouter() {
       setClientSideCheckDone(true);
     };
 
-    determineMode(); // Initial check
-    
-    // Listen for hash changes (e.g., navigating from #hash to /)
-    window.addEventListener('hashchange', determineMode);
-    
-    // No need to listen for popstate for query param changes if relying on Next's searchParams re-evaluation
-    
+    determineMode();
+
+    const handleHashChange = () => determineMode();
+    window.addEventListener('hashchange', handleHashChange);
+
     return () => {
-      window.removeEventListener('hashchange', determineMode);
+      window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [pathname, searchParams]); // searchParams from useSearchParams hook will trigger re-evaluation
+  }, [pathname, searchParams]); // searchParams from hook ensures re-evaluation on query change
 
   if (!clientSideCheckDone || renderMode === 'loading') {
     return <PageSkeletonForSuspense />;
@@ -1023,7 +1033,6 @@ function PageRouter() {
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
-  // renderMode === 'page' or is still 'loading' but clientSideCheckDone is true (meaning initial non-dashboard state)
   return <ActualPageContent />;
 }
 
@@ -1035,5 +1044,3 @@ export default function Home() {
     </Suspense>
   );
 }
-
-    
