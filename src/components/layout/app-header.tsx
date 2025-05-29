@@ -16,6 +16,7 @@ interface AppHeaderProps {
   isReadOnlyPreview?: boolean;
   onInitiateShare?: () => void; 
   canShareCurrentPage?: boolean;
+  joyrideProps?: Record<string, unknown>; 
 }
 
 export function AppHeader({
@@ -25,6 +26,7 @@ export function AppHeader({
   isReadOnlyPreview = false,
   onInitiateShare,
   canShareCurrentPage = false,
+  joyrideProps = {},
 }: AppHeaderProps) {
 
   return (
@@ -34,16 +36,16 @@ export function AppHeader({
           <Zap className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
         </div>
-        <div className="flex items-center gap-2" data-joyride="app-header-controls">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard">
+        <div className="flex items-center gap-2" {...joyrideProps}>
+          <Button asChild variant="outline" size="sm">
+             <Link href="/">
               <span className="flex items-center gap-1.5">
                 <ListChecks />
                 Dashboard
               </span>
             </Link>
           </Button>
-          <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
+          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && !canShareCurrentPage /* Allow new page from sample, disable on shared preview */}>New Page</Button>
           
           {onInitiateShare && (
             <Tooltip>
