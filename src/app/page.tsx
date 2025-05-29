@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
@@ -12,11 +12,12 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info, Share2 } from "lucide-react"; // Added Share2
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { format } from 'date-fns';
 import {
   DndContext,
   closestCenter,
@@ -57,10 +58,8 @@ function PageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clean the URL by removing sharedData param
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
-          // Use router.replace to update URL without adding to history and without full reload
           router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
@@ -155,10 +154,11 @@ function PageContent() {
       return;
     }
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`;
       
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -243,10 +243,7 @@ function PageContent() {
   };
 
   useEffect(() => {
-    let groupIdToOpen: string | null = null;
-    const currentUrl = new URL(window.location.href);
-    const params = new URLSearchParams(currentUrl.search);
-    groupIdToOpen = params.get('openGroupInNewWindow');
+    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
     
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
@@ -263,6 +260,10 @@ function PageContent() {
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
         
         const [firstUrl, ...otherUrls] = group.urls;
+        
+        router.replace(urlToClearParamsFrom, { scroll: false }); 
+        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
+
         otherUrls.forEach(url => {
           try {
             new URL(url); 
@@ -279,13 +280,9 @@ function PageContent() {
           }
         });
         
-        // Clear query param from URL first
-        router.replace(urlToClearParamsFrom, { scroll: false }); 
-        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
-
         setTimeout(() => {
           try {
-            new URL(firstUrl); // Validate URL
+            new URL(firstUrl);
             console.log("[OpenInNewWindowEffect] Attempting to replace current tab with first URL:", firstUrl);
             window.location.replace(firstUrl);
           } catch (e) {
@@ -307,8 +304,7 @@ function PageContent() {
         console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, appData, isLoading, currentHash]); // router and pathname are stable
+  }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
 
 
   const sensors = useSensors(
@@ -434,7 +430,7 @@ function PageContent() {
             canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
-            <div className="mb-8 text-center">
+            <div className="mb-6 text-center"> {/* Reduced mb from 8 to 6 */}
               <Input
                 type="text"
                 value={localPageTitle}
@@ -446,6 +442,12 @@ function PageContent() {
                 aria-label="Page Title"
                 disabled={isReadOnlyPreview}
               />
+              {currentHash && appData.lastModified && (
+                <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
+                  <Clock className="mr-1.5 h-3 w-3" />
+                  Last modified: {format(new Date(appData.lastModified), "MMM d, yyyy, h:mm a")}
+                </p>
+              )}
             </div>
 
             {isPristineOrSharedPage && (
@@ -505,9 +507,9 @@ function PageContent() {
              {appData && isReadOnlyPreview && (
                 <LinkGroupList
                     groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup}
-                    onEditGroup={handleEditGroup}
-                    onDeleteGroup={handleDeleteGroup}
+                    onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
+                    onEditGroup={handleEditGroup} // Will be disabled by LinkGroupList
+                    onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupList
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
                     isReadOnlyPreview={isReadOnlyPreview}
@@ -618,3 +620,5 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
+
+    
