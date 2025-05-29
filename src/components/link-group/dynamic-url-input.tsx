@@ -84,8 +84,8 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
         </TooltipContent>
       </Tooltip>
       <Input
-        type="url"
-        placeholder="https://example.com"
+        type="text" // Changed from "url" to "text"
+        placeholder="example.com"
         value={item.value}
         onChange={(e) => handleUrlChange(item.id, e.target.value)}
         className="flex-grow"
@@ -116,18 +116,14 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     (propUrls || []).map(urlValue => ({ id: crypto.randomUUID(), value: urlValue }))
   );
 
-  // Effect to sync with propUrls if it changes from parent (e.g., form reset, initial data load)
   useEffect(() => {
-    // Convert current items to a string array for comparison
     const currentItemValues = items.map(item => item.value);
     const safePropUrls = propUrls || [];
 
-    // Only update internal 'items' if 'propUrls' truly represents a different set of values.
-    // This comparison helps prevent infinite loops if 'propUrls' reference changes but content is effectively the same.
     if (JSON.stringify(safePropUrls) !== JSON.stringify(currentItemValues)) {
       setItems(safePropUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
     }
-  }, [propUrls]); // IMPORTANT: Only depend on propUrls for this effect.
+  }, [propUrls]); 
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -168,19 +164,12 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      // Get current indices from the `items` state directly
       const oldIndex = items.findIndex(item => item.id === active.id);
       const newIndex = items.findIndex(item => item.id === over.id);
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        // Create the new array based on the current `items` state
-        // Ensure to operate on a copy if arrayMove doesn't guarantee a new array
         const reorderedItems = arrayMove([...items], oldIndex, newIndex);
-        
-        // First, update the local state
         setItems(reorderedItems);
-        
-        // Then, notify the parent (React Hook Form Controller)
         onChange(reorderedItems.map(item => item.value));
       }
     }
