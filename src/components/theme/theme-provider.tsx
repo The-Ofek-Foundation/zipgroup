@@ -10,17 +10,16 @@ type Theme = AppData['theme'];
 
 type ThemeProviderProps = {
   children: React.ReactNode;
-  appData: AppData | null;
-  onThemeChange: (theme: Theme) => void;
+  appData: AppData | null; // appData can be null initially
+  onThemeChange: (theme: Theme) => void; // Callback to change theme in appData
 };
 
 type ThemeProviderState = {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  theme: Theme; // Current theme (light/dark)
+  setTheme: (theme: Theme) => void; // Function to set the theme
 };
 
-// Determine initial theme based on system preference or a default
-const getInitialTheme = (): Theme => {
+const getInitialSystemTheme = (): Theme => {
   if (typeof window !== 'undefined') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
@@ -28,7 +27,7 @@ const getInitialTheme = (): Theme => {
 };
 
 const initialState: ThemeProviderState = {
-  theme: getInitialTheme(),
+  theme: getInitialSystemTheme(),
   setTheme: () => null,
 };
 
@@ -36,27 +35,30 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  appData,
-  onThemeChange,
+  appData, // This comes from useAppData via page.tsx
+  onThemeChange, // This is useAppData's setTheme function
   ...props
 }: ThemeProviderProps) {
+
   useEffect(() => {
-    if (typeof window === 'undefined' || !appData) {
-      // If appData is null (still loading or error), we might apply a default or do nothing.
-      // For now, if appData is null, we won't change existing classes or styles.
-      // Initial theme class might be set by RootLayout or a system preference flicker.
-      return;
-    }
+    if (typeof window === 'undefined') return;
 
     const root = window.document.documentElement;
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const themeToApply = appData.theme || systemTheme;
+
+    // Determine and apply light/dark theme class
+    const systemTheme = getInitialSystemTheme();
+    // Use appData.theme if available and valid, otherwise fallback to systemTheme
+    const themeToApply = appData?.theme && ['light', 'dark'].includes(appData.theme) 
+                         ? appData.theme 
+                         : systemTheme;
 
     root.classList.remove("light", "dark");
     root.classList.add(themeToApply);
 
-    // Apply custom primary color
-    if (appData.customPrimaryColor) {
+    // Apply custom primary color if set in appData
+    // This is the "official" application of the color from saved state.
+    // CustomColorPicker handles its own live preview separately.
+    if (appData?.customPrimaryColor) {
       try {
         const hslValues = hexToHslValues(appData.customPrimaryColor);
         if (hslValues) {
@@ -64,34 +66,34 @@ export function ThemeProvider({
           root.style.setProperty('--primary', hslString);
           root.style.setProperty('--accent', hslString); // Sync accent with primary
 
-          const ringL = Math.max(0, hslValues.l - 6);
+          // Adjust ring color based on the new primary's lightness
+          const ringL = Math.max(0, hslValues.l - 6); // Slightly darker for ring
           root.style.setProperty('--ring', `${hslValues.h} ${hslValues.s}% ${ringL}%`);
         } else {
-          // Invalid custom color, remove properties to revert to theme defaults
+          // Invalid custom color in appData, revert to theme defaults
           root.style.removeProperty('--primary');
           root.style.removeProperty('--accent');
           root.style.removeProperty('--ring');
         }
       } catch (e) {
-        console.error("Failed to apply custom primary color:", e);
+        console.error("Failed to apply custom primary color from appData:", e);
         root.style.removeProperty('--primary');
         root.style.removeProperty('--accent');
         root.style.removeProperty('--ring');
       }
     } else {
-      // No custom color, remove properties to revert to theme defaults
+      // No custom color in appData, remove properties to revert to theme defaults in CSS
       root.style.removeProperty('--primary');
       root.style.removeProperty('--accent');
       root.style.removeProperty('--ring');
     }
-  }, [appData]); // This effect now solely depends on the appData object instance.
+  }, [appData]); // Effect runs when appData object reference changes
 
-  // Determine the theme to provide to context consumers
-  // Fallback to system theme if appData or appData.theme is not yet available
-  const currentThemeForContext = appData?.theme || getInitialTheme();
+  // Determine the theme value for the context (used by ThemeSwitcher)
+  const currentContextTheme = appData?.theme || getInitialSystemTheme();
 
   const value = {
-    theme: currentThemeForContext,
+    theme: currentContextTheme,
     setTheme: onThemeChange, // Pass through the setTheme function from useAppData
   };
 
@@ -104,9 +106,7 @@ export function ThemeProvider({
 
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
-
   if (context === undefined)
     throw new Error("useTheme must be used within a ThemeProvider");
-
   return context;
 };
