@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, Home as HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react"; // Renamed Home to HomeIcon
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, Home as HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -52,10 +52,8 @@ import { CustomColorPicker } from "@/components/theme/custom-color-picker";
 import { hexToHslValues } from "@/lib/color-utils";
 
 
-// --- Start of logic moved from src/app/dashboard/page.tsx ---
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Using existing prefix
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-// Dashboard theme keys are managed by useDashboardTheme hook
 
 interface StoredPage {
   hash: string;
@@ -89,8 +87,6 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
   };
 
   const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
-    // Only stop propagation if not read-only, to allow dnd-kit activation constraints to work for dialogs
-    // For dashboard items, they are always "editable" in terms of their cards being interactive.
     e.stopPropagation();
   };
 
@@ -102,8 +98,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
         "touch-manipulation",
         isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "z-auto cursor-grab"
       )}
-      {...attributes} // Apply dnd-kit attributes here
-      {...listeners}  // Apply dnd-kit listeners here
+      {...attributes}
+      {...listeners}
     >
       <Card
         className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full"
@@ -181,7 +177,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                       variant="destructive"
                       size="sm"
                       aria-label={`Delete page ${page.title}`}
-                      onPointerDown={stopPropagationForEvents} // Important for draggable context
+                       // No stopPropagation needed here if using activationConstraint for dnd
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
@@ -220,7 +216,7 @@ function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData(); // For "Create New Page" button
+  const { createNewBlankPageAndRedirect } = useAppData();
 
   const {
     themeMode,
@@ -253,7 +249,7 @@ function DashboardView() {
           key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
           key !== DASHBOARD_ORDER_KEY &&
-          key !== 'linkwarp_dashboard_theme_mode' && // Explicitly skip dashboard theme keys
+          key !== 'linkwarp_dashboard_theme_mode' &&
           key !== 'linkwarp_dashboard_custom_primary_color'
         ) {
           try {
@@ -302,7 +298,6 @@ function DashboardView() {
         }
       }
 
-      // Sort remaining (unordered) pages by lastModified (newest first), then title
       const remainingPages = allLoadedPages
         .filter(p => !processedHashes.has(p.hash))
         .sort((a, b) => {
@@ -453,7 +448,7 @@ function DashboardView() {
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between p-4">
           <div className="flex items-center gap-2">
-            <HomeIcon className="mr-2 h-6 w-6 text-primary" /> {/* Use aliased HomeIcon */}
+            <HomeIcon className="mr-2 h-6 w-6 text-primary" />
             <h1 className="text-2xl font-semibold text-primary">ZipGroup Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -523,10 +518,7 @@ function DashboardView() {
     </div>
   );
 }
-// --- End of logic moved from src/app/dashboard/page.tsx ---
 
-
-// --- Start of ActualPageContent (for /#HASH pages) ---
 function ActualPageContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -549,7 +541,6 @@ function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clear the sharedData param from URL after processing
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.delete('sharedData');
           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
@@ -566,7 +557,7 @@ function ActualPageContent() {
            router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found
+      setSharedDataProcessed(true);
     }
   }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
@@ -579,7 +570,7 @@ function ActualPageContent() {
     createNewPageFromAppData,
     currentHash,
     setCustomPrimaryColor,
-    createNewBlankPageAndRedirect, 
+    createNewBlankPageAndRedirect,
   } = useAppData(initialSharedData);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -588,7 +579,7 @@ function ActualPageContent() {
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
 
   const isPristineOrSharedPage = !currentHash && !!appData;
-  const isReadOnlyPreview = isPristineOrSharedPage && !!initialSharedData; 
+  const isReadOnlyPreview = isPristineOrSharedPage && !!initialSharedData;
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -630,7 +621,7 @@ function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`;
+      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}#${currentHash}`;
 
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -647,7 +638,7 @@ function ActualPageContent() {
       });
     }
   };
-  
+
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
     if (!currentHash) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
@@ -694,21 +685,21 @@ function ActualPageContent() {
 
     if (queryGroupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === queryGroupIdToOpen);
-      
+
       if (group && group.urls.length > 0) {
         toast({
           title: `Opening "${group.name}"...`,
           description: `Attempting to open ${group.urls.length} link(s). Your browser's popup blocker might prevent some links. This tab will become the first link.`,
           duration: 10000,
         });
-        
-        router.replace(cleanPathWithHash, { scroll: false }); 
+
+        router.replace(cleanPathWithHash, { scroll: false });
 
         const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
 
         otherUrlsFull.forEach(url => {
           try {
-            new URL(url); 
+            new URL(url);
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
@@ -722,17 +713,17 @@ function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrlFull); 
+            new URL(firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
           }
-        }, 250); 
+        }, 250);
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
         router.replace(cleanPathWithHash, { scroll: false });
-      } else if (!group) { 
+      } else if (!group) {
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${queryGroupIdToOpen}".`, variant: "destructive" });
         router.replace(cleanPathWithHash, { scroll: false });
       }
@@ -798,14 +789,14 @@ function ActualPageContent() {
     setIsFormOpen(false);
   };
 
-  const handleSaveCurrentDataAsNewPage = async () => { 
+  const handleSaveCurrentDataAsNewPage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); 
+    const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
         title: isPristineOrSharedPage && initialSharedData ? "Shared Page Saved!" : "Page Saved!",
-        description: isPristineOrSharedPage && initialSharedData 
-          ? "The shared page is now part of your dashboard." 
+        description: isPristineOrSharedPage && initialSharedData
+          ? "The shared page is now part of your dashboard."
           : "This page is now saved to your dashboard.",
       });
     } else {
@@ -845,7 +836,7 @@ function ActualPageContent() {
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
                 disabled={isReadOnlyPreview}
-                data-joyride="page-title-input" 
+                data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -854,7 +845,7 @@ function ActualPageContent() {
                 </p>
               )}
             </div>
-            
+
             {isPristineOrSharedPage && (
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow" data-joyride="interactive-sample-info">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
@@ -862,7 +853,7 @@ function ActualPageContent() {
                   {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                  {initialSharedData 
+                  {initialSharedData
                     ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own."
                     : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"
                   }
@@ -883,15 +874,15 @@ function ActualPageContent() {
                 <p className="text-sm text-muted-foreground mt-4">
                   Saving will create a new copy in your dashboard, allowing you to edit and manage it.
                 </p>
-                 {!initialSharedData && ( // Only show Quick Tour for pristine sample page
+                 {!initialSharedData && (
                   <Button variant="outline" size="lg" onClick={() => { /* TODO: Implement or connect tour start */ }} className="mt-4 ml-3">
                      <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
                   </Button>
                 )}
               </div>
             )}
-            
-            {appData && ( // Always render LinkGroupList if appData exists
+
+            {appData && (
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
@@ -954,11 +945,8 @@ function ActualPageContent() {
     </ThemeProvider>
   );
 }
-// --- End of ActualPageContent ---
-
 
 function PageSkeletonForSuspense() {
-  // Re-using the more detailed skeleton from the old page.tsx
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -989,33 +977,52 @@ function PageSkeletonForSuspense() {
 
 function PageRouter() {
   const searchParams = useSearchParams();
+  const pathname = usePathname(); // Will always be '/' for this page
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
-  const [clientSideCheckDone, setClientSideCheckDone] = useState(false);
+  const [clientSideCheckDone, setClientSideCheckDone] = useState(false); // To ensure effect runs once for this
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const determineMode = () => {
+      if (typeof window === 'undefined') {
+        // Should not really hit this in useEffect, but good for safety
+        setRenderMode('loading'); // Or some server-compatible default if needed
+        return;
+      }
+
       const hash = window.location.hash.substring(1).split('?')[0];
-      const sharedData = searchParams.get('sharedData');
-      if (!hash && !sharedData) {
+      const currentUrlSearchParams = new URLSearchParams(window.location.search);
+      const sharedData = currentUrlSearchParams.get('sharedData') || searchParams.get('sharedData'); // Prioritize direct URL then hook
+
+      if (pathname === '/' && !hash && !sharedData) {
         setRenderMode('dashboard');
       } else {
         setRenderMode('page');
       }
-      setClientSideCheckDone(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount to check initial URL state. searchParams might change but hash needs manual check.
+      setClientSideCheckDone(true); // Mark that client-side determination is done
+    };
 
-  if (!clientSideCheckDone) {
+    determineMode(); // Initial check on mount and on searchParams/pathname change
+
+    // Listen for hash changes specifically
+    window.addEventListener('hashchange', determineMode);
+
+    return () => {
+      window.removeEventListener('hashchange', determineMode);
+    };
+  }, [pathname, searchParams]); // Re-run when Next.js Router updates pathname or searchParams
+
+  if (!clientSideCheckDone && renderMode === 'loading') {
+    // Show skeleton until the first client-side check is complete
     return <PageSkeletonForSuspense />;
   }
 
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
-  // renderMode === 'page' or 'loading' (if client check not done but somehow bypassed)
+  // renderMode === 'page' or 'loading' (if clientSideCheckDone is true but mode still loading, though unlikely with current logic)
   return <ActualPageContent />;
 }
+
 
 export default function Home() {
   return (
@@ -1024,5 +1031,3 @@ export default function Home() {
     </Suspense>
   );
 }
-
-    
