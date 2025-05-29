@@ -14,6 +14,9 @@ interface SortableLinkGroupItemProps {
   onDelete: (group: LinkGroup) => void;
   onOpenInNewWindow: (group: LinkGroup) => void;
   isReadOnlyPreview?: boolean;
+  joyrideContainerProps?: Record<string, unknown>;
+  joyrideEditButtonProps?: Record<string, unknown>;
+  joyrideDeleteButtonProps?: Record<string, unknown>;
 }
 
 export function SortableLinkGroupItem({ 
@@ -22,7 +25,10 @@ export function SortableLinkGroupItem({
   onEdit, 
   onDelete, 
   onOpenInNewWindow,
-  isReadOnlyPreview = false 
+  isReadOnlyPreview = false,
+  joyrideContainerProps = {},
+  joyrideEditButtonProps = {},
+  joyrideDeleteButtonProps = {},
 }: SortableLinkGroupItemProps) {
   const {
     attributes,
@@ -45,12 +51,13 @@ export function SortableLinkGroupItem({
     <div
       ref={setNodeRef}
       style={style}
-      {...(isReadOnlyPreview ? {} : attributes)} // Conditionally apply drag attributes
-      {...(isReadOnlyPreview ? {} : listeners)}  // Conditionally apply drag listeners
+      {...(isReadOnlyPreview ? {} : attributes)} 
+      {...(isReadOnlyPreview ? {} : listeners)}  
       className={cn(
         "touch-manipulation",
         isDragging && !isReadOnlyPreview ? "cursor-grabbing z-50" : (!isReadOnlyPreview ? "cursor-grab z-0" : ""),
       )}
+      {...joyrideContainerProps}
     >
       <LinkGroupCard
         group={group}
@@ -60,7 +67,11 @@ export function SortableLinkGroupItem({
         onOpenInNewWindow={onOpenInNewWindow}
         isDragging={isDragging && !isReadOnlyPreview}
         isReadOnlyPreview={isReadOnlyPreview}
+        joyrideEditButtonProps={joyrideEditButtonProps}
+        joyrideDeleteButtonProps={joyrideDeleteButtonProps}
       />
     </div>
   );
 }
+
+    

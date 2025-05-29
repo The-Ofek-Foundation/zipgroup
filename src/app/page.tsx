@@ -42,7 +42,7 @@ const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
 function PageContent() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const searchParamsHook = useSearchParams(); // Renamed to avoid conflict
   const { toast } = useToast();
 
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
@@ -50,16 +50,16 @@ function PageContent() {
 
   // Joyride State
   const [runJoyride, setRunJoyride] = useState(false);
-  const [joyrideKey, setJoyrideKey] = useState(Date.now()); // To reset/remount Joyride
+  const [joyrideKey, setJoyrideKey] = useState(Date.now());
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
-      const sharedDataParam = searchParams.get('sharedData');
-      if (sharedDataParam && !window.location.hash) { 
+      const sharedDataParam = searchParamsHook.get('sharedData');
+      if (sharedDataParam && !window.location.hash) {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData); 
+          setInitialSharedData(parsedData);
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
@@ -79,9 +79,9 @@ function PageContent() {
           window.history.replaceState(null, '', currentCleanUrl);
         }
       }
-      setSharedDataProcessed(true); 
+      setSharedDataProcessed(true);
     }
-  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
+  }, [searchParamsHook, router, pathname, toast, sharedDataProcessed]);
 
   const {
     isLoading,
@@ -89,11 +89,11 @@ function PageContent() {
     setPageTitle,
     setLinkGroups,
     setTheme,
-    createNewPageFromAppData, 
-    createNewBlankPage, 
+    createNewPageFromAppData,
+    createNewBlankPage,
     currentHash,
     setCustomPrimaryColor,
-  } = useAppData(initialSharedData); 
+  } = useAppData(initialSharedData);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -112,10 +112,9 @@ function PageContent() {
     if (!isLoading && !currentHash && !initialSharedData && typeof window !== 'undefined') {
       const tourTaken = localStorage.getItem(JOYRIDE_PRISTINE_TAKEN_KEY);
       if (!tourTaken) {
-        // Small delay to ensure elements are rendered
         setTimeout(() => {
           setRunJoyride(true);
-          setJoyrideKey(Date.now()); // Reset key to ensure tour starts fresh
+          setJoyrideKey(Date.now()); 
         }, 500);
       }
     }
@@ -133,26 +132,80 @@ function PageContent() {
       target: '[data-joyride="theme-switcher"]',
       content: 'Toggle between light and dark themes for your page.',
       placement: 'bottom',
+      disableBeacon: true,
     },
     {
       target: '[data-joyride="custom-color-picker"]',
       content: 'Pick a custom primary color to personalize your page further.',
       placement: 'bottom',
+      disableBeacon: true,
     },
     {
       target: '[data-joyride="interactive-sample-info"]',
-      content: 'This is an interactive sample page. Feel free to make changes!',
+      content: 'This page is fully interactive! Customize it, then let\'s try adding a link group.',
       placement: 'bottom',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="add-new-group-button"]',
+      content: 'Click here to add a new link group. Your changes on this page are temporary until you save the entire page.',
+      placement: 'top',
+      disableBeacon: true,
+      spotlightClicks: true,
+    },
+    {
+      target: '[data-joyride="group-form-name-input"]',
+      content: 'Enter a name for your group (e.g., "Work Links", "Social Media").',
+      placement: 'bottom',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="group-form-icon-picker"]',
+      content: 'Choose an icon that represents your group.',
+      placement: 'bottom',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="group-form-urls-input"]',
+      content: 'Add your links here. You can add multiple URLs and drag them to reorder.',
+      placement: 'top',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="group-form-save-button"]',
+      content: 'Click to save your new link group!',
+      placement: 'top',
+      disableBeacon: true,
+      spotlightClicks: true,
+    },
+    {
+      target: '[data-joyride="link-group-card"]', // Assumes at least one card (sample or newly added)
+      content: 'Your link groups appear as cards. If you have multiple, you can drag them to reorder.',
+      placement: 'top',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="link-group-edit-button"]', // Assumes at least one card
+      content: 'Use the edit button to modify a group\'s details or links.',
+      placement: 'top',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="link-group-delete-button"]', // Assumes at least one card
+      content: 'And the delete button to remove a group.',
+      placement: 'top',
+      disableBeacon: true,
     },
     {
       target: '[data-joyride="save-pristine-page-button"]',
-      content: 'Once you\'re happy, save your page to get a unique link and start adding link groups!',
+      content: 'Great! Now you know the basics. Save your page to keep all your changes and get a unique shareable link!',
       placement: 'top',
+      disableBeacon: true,
     },
   ];
 
   const handleJoyrideCallback = useCallback((data: CallBackProps) => {
-    const { status, type, action } = data;
+    const { status, type, action, index, step } = data;
     const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
 
     if (finishedStatuses.includes(status)) {
@@ -163,15 +216,31 @@ function PageContent() {
     }
 
     if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
-        setRunJoyride(false); // Allow closing with X button
+      setRunJoyride(false);
     }
 
+    // If a step requires opening a dialog (e.g., "Add New Group"),
+    // and the user clicks it via spotlightClicks, ensure the dialog is opened.
+    if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
+      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) { // Step for "Add New Group"
+         // Check if form is already open to prevent re-opening
+        if (!isFormOpen) {
+           setIsFormOpen(true);
+        }
+      }
+      // If current step was to save group form, and it's done, close the form.
+      // This is tricky because joyride doesn't know when form submission completes.
+      // We rely on the user clicking and the form closing itself.
+      // A more robust solution might involve custom control of joyride advancement.
+    }
+
+
     // console.log('Joyride callback data:', data);
-  }, [currentHash, initialSharedData]);
+  }, [currentHash, initialSharedData, isFormOpen]);
 
   const startPristineTour = () => {
     setRunJoyride(true);
-    setJoyrideKey(Date.now()); // Reset key
+    setJoyrideKey(Date.now());
   };
 
 
@@ -181,7 +250,7 @@ function PageContent() {
 
   const handlePageTitleBlur = () => {
     if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle); 
+      setPageTitle(localPageTitle);
     }
   };
 
@@ -195,7 +264,7 @@ function PageContent() {
   };
 
   const handleCopyPageUrl = async () => {
-    if (!currentHash) { 
+    if (!currentHash) {
       toast({
         title: "Error",
         description: "Page URL not available until the page is saved.",
@@ -235,7 +304,7 @@ function PageContent() {
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
       const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`;
-      
+
       await navigator.clipboard.writeText(shareUrl);
       toast({
         title: "Share Link Copied!",
@@ -287,7 +356,7 @@ function PageContent() {
       toast({ title: "No URLs", description: "This group has no URLs to open.", variant: "default" });
       return;
     }
-    
+
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -306,7 +375,7 @@ function PageContent() {
             <p className="mt-1 text-xs text-muted-foreground">Ensure your browser allows popups from this site.</p>
           </div>
         ),
-        duration: 15000, 
+        duration: 15000,
       });
     } catch (err) {
       console.error("Failed to copy special URL for new window: ", err);
@@ -318,13 +387,14 @@ function PageContent() {
     }
   };
 
-  useEffect(() => {
-    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    
+ useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const groupIdToOpen = queryParams.get('openGroupInNewWindow');
+
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      
+
       let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
@@ -334,28 +404,31 @@ function PageContent() {
           duration: 10000,
         });
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
-        
-        router.replace(urlToClearParamsFrom, { scroll: false }); 
-        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
-        
+
+        // Clear the query param by replacing the URL
+        const newCleanUrl = new URL(window.location.href);
+        newCleanUrl.searchParams.delete('openGroupInNewWindow');
+        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash);
+
         const [firstUrl, ...otherUrls] = group.urls;
-        
+
         otherUrls.forEach(url => {
           try {
-            new URL(url); 
+            new URL(url);
             const newTab = window.open(url, '_blank');
-             if (!newTab) {
-                console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
-                toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000});
+            if (!newTab) {
+              console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
+              toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000 });
             } else {
-                console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
+              console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
             }
           } catch (e) {
-             console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
-             toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
+            console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
+            toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive" });
           }
         });
-        
+
         setTimeout(() => {
           try {
             new URL(firstUrl);
@@ -363,24 +436,28 @@ function PageContent() {
             window.location.replace(firstUrl);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
-            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
+            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000 });
           }
-        }, 250); 
+        }, 250);
       } else if (group && group.urls.length === 0) {
         console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
+        const newCleanUrl = new URL(window.location.href);
+        newCleanUrl.searchParams.delete('openGroupInNewWindow');
+        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
       } else if (group === undefined) {
         console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
+        const newCleanUrl = new URL(window.location.href);
+        newCleanUrl.searchParams.delete('openGroupInNewWindow');
+        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
       }
     } else {
       if (groupIdToOpen) {
         // console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
       }
     }
-  }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
+ }, [searchParamsHook, appData, isLoading, currentHash, pathname, router, toast]);
 
 
   const sensors = useSensors(
@@ -403,10 +480,10 @@ function PageContent() {
       }
     }
   };
-  
-  const isPristinePage = !currentHash && appData && !initialSharedData; // Interactive sample page
-  const isSharedPreview = !currentHash && appData && !!initialSharedData; // Shared page PREVIEW (read-only)
-  const isReadOnly = isSharedPreview; // Central flag for disabling UI elements
+
+  const isPristineSamplePage = !currentHash && appData && !initialSharedData;
+  const isSharedPreview = !currentHash && appData && !!initialSharedData;
+  const isReadOnlyPreview = isSharedPreview; // Only shared previews are read-only until saved
 
 
   if (isLoading || !appData || !sharedDataProcessed) {
@@ -423,7 +500,7 @@ function PageContent() {
           </div>
         </header>
         <main className="flex-grow container mx-auto p-4 md:p-8">
-           <div className="mb-8 text-center">
+          <div className="mb-8 text-center">
             <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
           </div>
           <div className="flex justify-end mb-6">
@@ -474,18 +551,17 @@ function PageContent() {
 
   const handleSavePristineOrSharedPage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); 
+    const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
         title: "Page Saved!",
         description: "Your new ZipGroup page is ready.",
       });
-       // If this was the pristine sample page, mark the tour as taken
-      if (isPristinePage) {
+      if (isPristineSamplePage) {
         localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
       }
     } else {
-       toast({
+      toast({
         title: "Save Failed",
         description: "Could not save the page. Please try again.",
         variant: "destructive",
@@ -500,7 +576,7 @@ function PageContent() {
       appData={appData}
       onThemeChange={setTheme}
     >
-      {typeof window !== 'undefined' && !isSharedPreview && ( // Joyride only for non-shared pages for now
+      {typeof window !== 'undefined' && (
         <Joyride
           key={joyrideKey}
           steps={pristinePageJoyrideSteps}
@@ -510,10 +586,11 @@ function PageContent() {
           showProgress
           showSkipButton
           scrollToFirstStep
-          disableScrollParentFix // Often needed with complex layouts
+          disableScrollParentFix 
+          spotlightClicks={true} // Enable for steps that require clicking the target
           styles={{
             options: {
-              zIndex: 10000, // Ensure it's above other elements
+              zIndex: 10000, 
               arrowColor: 'hsl(var(--background))',
               backgroundColor: 'hsl(var(--background))',
               primaryColor: 'hsl(var(--primary))',
@@ -523,7 +600,7 @@ function PageContent() {
               borderRadius: 'var(--radius)',
             },
             buttonClose: {
-              display: 'none', // Using skip button instead
+              // display: 'none', // Hiding close button to encourage using skip/next
             },
           }}
         />
@@ -531,15 +608,15 @@ function PageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPage} 
+            onCreateNewPage={isPristineSamplePage || isSharedPreview ? handleSavePristineOrSharedPage : createNewBlankPage}
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={isReadOnly}
+            isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
             canShareCurrentPage={!!currentHash && !isSharedPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
-            <div className="mb-6 text-center"> 
+            <div className="mb-6 text-center">
               <Input
                 type="text"
                 value={localPageTitle}
@@ -549,7 +626,7 @@ function PageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnly}
+                disabled={isReadOnlyPreview}
                 data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
@@ -560,10 +637,10 @@ function PageContent() {
               )}
             </div>
 
-            {(isPristinePage || isSharedPreview) && ( 
-              <div 
+            {(isPristineSamplePage || isSharedPreview) && (
+              <div
                 className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
-                data-joyride={isPristinePage ? "interactive-sample-info" : undefined}
+                data-joyride={isPristineSamplePage ? "interactive-sample-info" : undefined}
               >
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
@@ -575,9 +652,9 @@ function PageContent() {
                     : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"}
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <Button 
-                    onClick={handleSavePristineOrSharedPage} 
-                    size="lg" 
+                  <Button
+                    onClick={handleSavePristineOrSharedPage}
+                    size="lg"
                     disabled={isSavingNewPage}
                     data-joyride="save-pristine-page-button"
                   >
@@ -588,21 +665,21 @@ function PageContent() {
                     )}
                     {isSharedPreview ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
                   </Button>
-                  {isPristinePage && (
-                     <Button variant="outline" size="lg" onClick={startPristineTour}>
-                        <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
+                  {isPristineSamplePage && (
+                    <Button variant="outline" size="lg" onClick={startPristineTour}>
+                      <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
                     </Button>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-4">
-                  {isSharedPreview 
+                  {isSharedPreview
                     ? "Saving will create a new copy in your dashboard, allowing you to edit and manage it."
                     : "After saving, you'll get a unique URL for this page."}
                 </p>
               </div>
             )}
-            
-            {!isReadOnly && appData && (
+
+            {!isReadOnlyPreview && appData && (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -619,22 +696,22 @@ function PageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false} 
+                    isReadOnlyPreview={false}
                   />
                 </SortableContext>
               </DndContext>
             )}
-             {isReadOnly && appData && (
-                <LinkGroupList
-                    groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup}
-                    onEditGroup={handleEditGroup}
-                    onDeleteGroup={handleDeleteGroup}
-                    onOpenGroup={handleOpenGroup}
-                    onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={true}
-                  />
-             )}
+            {isReadOnlyPreview && appData && (
+              <LinkGroupList
+                groups={appData.linkGroups}
+                onAddGroup={handleAddGroup}
+                onEditGroup={handleEditGroup}
+                onDeleteGroup={handleDeleteGroup}
+                onOpenGroup={handleOpenGroup}
+                onOpenInNewWindow={handleOpenGroupInNewWindow}
+                isReadOnlyPreview={true}
+              />
+            )}
           </main>
           <LinkGroupFormDialog
             isOpen={isFormOpen}
@@ -704,6 +781,7 @@ function CardSkeleton() {
   );
 }
 
+// Wrap PageContent with Suspense because useSearchParams() is used
 export default function Home() {
   return (
     <Suspense fallback={<PageSkeletonForSuspense />}>
@@ -728,14 +806,16 @@ function PageSkeletonForSuspense() {
         <div className="mb-8 text-center">
           <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
         </div>
-         <div className="flex justify-center mb-10"> 
+        <div className="flex justify-center mb-10">
           <Skeleton className="h-12 w-64" />
         </div>
-        <div className="text-center"> 
-          <Skeleton className="h-5 w-1/2 mx-auto mb-2"/>
-          <Skeleton className="h-5 w-2/3 mx-auto"/>
+        <div className="text-center">
+          <Skeleton className="h-5 w-1/2 mx-auto mb-2" />
+          <Skeleton className="h-5 w-2/3 mx-auto" />
         </div>
       </main>
     </div>
   );
 }
+
+    

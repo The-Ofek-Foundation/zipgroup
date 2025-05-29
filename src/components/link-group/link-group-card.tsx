@@ -28,6 +28,8 @@ interface LinkGroupCardProps {
   onOpenInNewWindow: (group: LinkGroup) => void;
   isDragging?: boolean;
   isReadOnlyPreview?: boolean;
+  joyrideEditButtonProps?: Record<string, unknown>;
+  joyrideDeleteButtonProps?: Record<string, unknown>;
 }
 
 export function LinkGroupCard({ 
@@ -37,7 +39,9 @@ export function LinkGroupCard({
   onDelete, 
   onOpenInNewWindow, 
   isDragging,
-  isReadOnlyPreview = false
+  isReadOnlyPreview = false,
+  joyrideEditButtonProps = {},
+  joyrideDeleteButtonProps = {},
 }: LinkGroupCardProps) {
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -84,8 +88,7 @@ export function LinkGroupCard({
   };
 
   const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent) => {
-    // Only stop propagation if not in read-only preview mode, as dragging isn't active then
-    if (!isReadOnlyPreview) {
+    if (!isReadOnlyPreview) { // Only stop if not read-only, as dragging is disabled then
       e.stopPropagation();
     }
   };
@@ -164,6 +167,7 @@ export function LinkGroupCard({
                 onPointerDown={stopPropagationForRegularButtons} 
                 aria-label="Edit group"
                 disabled={isReadOnlyPreview}
+                {...joyrideEditButtonProps}
               >
                 <Edit3 className="h-4 w-4" />
               </Button>
@@ -173,17 +177,21 @@ export function LinkGroupCard({
             </TooltipContent>
           </Tooltip>
 
-          <Dialog open={isDeleteDialogOpen && !isReadOnlyPreview} onOpenChange={(open) => !isReadOnlyPreview && setIsDeleteDialogOpen(open)}>
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="destructive" 
                   size="icon" 
-                  onClick={() => !isReadOnlyPreview && setIsDeleteDialogOpen(true)} 
+                  onClick={() => { 
+                    if (isReadOnlyPreview) return;
+                    setIsDeleteDialogOpen(true);
+                  }}
                   aria-label="Delete group"
                   disabled={isReadOnlyPreview}
-                  // No onPointerDown needed here as DialogTrigger handles events itself, 
-                  // and dnd-kit sensor delay handles drag vs click.
+                  // No onPointerDown needed here due to dnd-kit sensor delay 
+                  // and DialogTrigger handling its own events.
+                  {...joyrideDeleteButtonProps}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -210,3 +218,5 @@ export function LinkGroupCard({
     </Card>
   );
 }
+
+    

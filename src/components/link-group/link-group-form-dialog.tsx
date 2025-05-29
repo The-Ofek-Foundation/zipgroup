@@ -18,12 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DynamicUrlInput } from "./dynamic-url-input";
-import { IconPickerInput } from "./icon-picker-input"; // New component
-// Removed: Loader2, Wand2, suggestIcon, useToast (if only for suggestIcon)
-// useToast might still be used by the parent component or for other form actions, so keep it for now.
+import { IconPickerInput } from "./icon-picker-input"; 
 import { useToast } from "@/hooks/use-toast";
-// Tooltip components are used by IconPickerInput internally or can be removed if not used elsewhere in this file
-// For now, keeping TooltipProvider at a higher level (page.tsx) is fine.
+
 
 const linkGroupSchema = z.object({
   name: z.string().min(1, "Group name is required"),
@@ -46,41 +43,39 @@ export function LinkGroupFormDialog({
   onSubmit,
   initialData,
 }: LinkGroupFormDialogProps) {
-  const { toast } = useToast(); // Kept in case of future use or if parent needs it
+  const { toast } = useToast(); 
 
   const {
     control,
     register,
     handleSubmit,
     reset,
-    // watch, // watch("icon") and watch("name") no longer needed for this component directly
-    // setValue, // setValue("icon") is now handled by Controller
     formState: { errors },
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
     defaultValues: {
       name: "",
-      icon: "Package", // Default icon
+      icon: "Package", 
       urls: [""],
     },
   });
 
-  // const groupName = watch("name"); // No longer needed for AI suggestion trigger
-  // const iconName = watch("icon"); // The IconPickerInput will display its own preview
 
   useEffect(() => {
-    if (initialData) {
-      reset({
-        name: initialData.name,
-        icon: initialData.icon,
-        urls: initialData.urls.length > 0 ? initialData.urls : [""],
-      });
-    } else {
-      reset({
-        name: "",
-        icon: "Package", // Reset to default
-        urls: [""],
-      });
+    if (isOpen) { // Only reset when dialog opens
+      if (initialData) {
+        reset({
+          name: initialData.name,
+          icon: initialData.icon,
+          urls: initialData.urls.length > 0 ? initialData.urls : [""],
+        });
+      } else {
+        reset({
+          name: "",
+          icon: "Package", 
+          urls: [""],
+        });
+      }
     }
   }, [initialData, reset, isOpen]);
 
@@ -89,10 +84,9 @@ export function LinkGroupFormDialog({
       id: initialData?.id || crypto.randomUUID(),
       ...data,
     });
-    onClose(); // This will also trigger reset due to useEffect dependency on isOpen
+    onClose(); 
   };
 
-  // Removed handleSuggestIcon and isSuggestingIcon state
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -104,13 +98,13 @@ export function LinkGroupFormDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 py-4">
-          <div>
+          <div data-joyride="group-form-name-input">
             <Label htmlFor="name">Group Name</Label>
             <Input id="name" {...register("name")} className="mt-1" />
             {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
           </div>
 
-          <div>
+          <div data-joyride="group-form-icon-picker">
             <Label htmlFor="icon-picker">Icon</Label>
             <Controller
               name="icon"
@@ -128,7 +122,7 @@ export function LinkGroupFormDialog({
             </p>
           </div>
 
-          <div>
+          <div data-joyride="group-form-urls-input">
             <Label>URLs</Label>
             <Controller
               name="urls"
@@ -149,10 +143,12 @@ export function LinkGroupFormDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Save Group</Button>
+            <Button type="submit" data-joyride="group-form-save-button">Save Group</Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
+
+    
