@@ -193,8 +193,17 @@ export default function Home() {
             initialData={editingGroup}
           />
           <footer className="py-6 text-center text-sm text-muted-foreground">
-            <div className="flex items-center justify-center gap-2">
-              <span>Powered by ZipGroup.link. Your current page hash:</span>
+            <div className="flex items-center justify-center gap-1 flex-wrap px-2">
+              <span>Powered by </span>
+              <Button
+                variant="link"
+                onClick={createNewPage}
+                className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
+              >
+                ZipGroup.link
+              </Button>
+              <span className="hidden sm:inline">. Your current page hash:</span>
+              <span className="sm:hidden">. Hash:</span>
               <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
               {currentHash && (
                 <Tooltip>
