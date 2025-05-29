@@ -25,7 +25,7 @@ export function AppFooter({ onCreateNewPage }: AppFooterProps) {
           href="https://ofek.phd"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-primary underline"
+          className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary hover:underline"
         >
           Ofek Gila
         </a>
