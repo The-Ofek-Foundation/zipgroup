@@ -12,7 +12,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info } from "lucide-react"; // Added Save, Loader2, Info
+import { ClipboardCopy, Save, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
@@ -33,7 +33,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // This should match useAppData
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_";
 
 function PageContent() {
   const router = useRouter();
@@ -44,22 +44,19 @@ function PageContent() {
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
   const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
   
-  // Effect to process sharedData query parameter ONCE
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const sharedDataParam = searchParams.get('sharedData');
-      if (sharedDataParam && !window.location.hash) { // Only process if no hash and sharedData exists
+      if (sharedDataParam && !window.location.hash) { 
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          // Validate parsedData structure if necessary
           setInitialSharedData(parsedData);
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clean the URL by removing the sharedData query parameter
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
           router.replace(newUrl.pathname + newUrl.search, { scroll: false });
@@ -70,13 +67,12 @@ function PageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-          router.replace(pathname, { scroll: false }); // Clean URL
+          router.replace(pathname, { scroll: false }); 
         }
       }
-      setSharedDataProcessed(true); // Mark as processed to prevent re-running
+      setSharedDataProcessed(true); 
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router, pathname, toast, sharedDataProcessed]); // Add sharedDataProcessed
+  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
   const {
     isLoading,
@@ -84,16 +80,16 @@ function PageContent() {
     setPageTitle,
     setLinkGroups,
     setTheme,
-    createNewPageFromAppData, // Renamed from createNewPage
-    createNewBlankPage, // New function for header's "New Page"
+    createNewPageFromAppData, 
+    createNewBlankPage, 
     currentHash,
     setCustomPrimaryColor,
-  } = useAppData(initialSharedData); // Pass initialSharedData to the hook
+  } = useAppData(initialSharedData); 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
   const [localPageTitle, setLocalPageTitle] = useState("");
-  const [isSavingNewPage, setIsSavingNewPage] = useState(false); // For "Save This Page" button state
+  const [isSavingNewPage, setIsSavingNewPage] = useState(false);
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -108,7 +104,7 @@ function PageContent() {
 
   const handlePageTitleBlur = () => {
     if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle); // This will update transient state if no hash, or save if hash exists
+      setPageTitle(localPageTitle); 
     }
   };
 
@@ -122,7 +118,7 @@ function PageContent() {
   };
 
   const handleCopyPageUrl = async () => {
-    if (!currentHash) { // Should only be available for saved pages
+    if (!currentHash) { 
       toast({
         title: "Error",
         description: "Page URL not available until the page is saved.",
@@ -158,13 +154,14 @@ function PageContent() {
       pageTitle: `ZipGroup Page ${newHash}`,
       theme: appData.theme || currentSystemTheme,
       customPrimaryColor: appData.customPrimaryColor,
+      lastModified: Date.now(),
     };
 
     try {
       localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
     } catch (error) {
       console.error("Failed to save data for new tab:", error);
-      // toast error
+      toast({ title: "Error", description: "Could not prepare new page for tab.", variant: "destructive" });
       return;
     }
 
@@ -213,7 +210,7 @@ function PageContent() {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+      const urlToClearParamsFrom = pathname + (currentHash ? `#${currentHash}` : '');
 
       if (group && group.urls.length > 0) {
         toast({
@@ -250,7 +247,6 @@ function PageContent() {
         router.replace(urlToClearParamsFrom, { scroll: false });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
 
   const sensors = useSensors(
@@ -274,7 +270,7 @@ function PageContent() {
     }
   };
 
-  if (isLoading || !appData || !sharedDataProcessed) { // Wait for sharedData processing too
+  if (isLoading || !appData || !sharedDataProcessed) {
     return (
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -339,10 +335,8 @@ function PageContent() {
 
   const handleSavePristineOrSharedPage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); // This will save current appData (pristine or shared)
+    const newHash = createNewPageFromAppData(); 
     if (newHash) {
-      // The hashchange listener in useAppData should handle the navigation and data reload.
-      // No explicit router.push needed here as window.location.hash is set by createNewPageFromAppData.
       toast({
         title: "Page Saved!",
         description: "Your new ZipGroup page is ready.",
@@ -367,7 +361,7 @@ function PageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPage} // Header "New Page" creates a blank one
+            onCreateNewPage={createNewBlankPage} 
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
           />
@@ -385,16 +379,16 @@ function PageContent() {
               />
             </div>
 
-            {isPristineOrSharedPage ? (
-              <div className="text-center py-10 px-4">
-                <Info className="mx-auto h-12 w-12 text-primary mb-6" />
-                <h2 className="text-2xl font-semibold text-foreground mb-3">
+            {isPristineOrSharedPage && (
+              <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow">
+                <Info className="mx-auto h-10 w-10 text-primary mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
                 </h2>
-                <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+                <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
-                    ? "This is a preview of a shared ZipGroup page. You can customize the title and theme above."
-                    : "Customize your new page's title and theme above. Once you're ready, save it to start adding link groups."}
+                    ? "This is a preview of a shared ZipGroup page. You can customize it above and see the link groups below. When you're ready, save it to your dashboard."
+                    : "Customize your new page's title and theme above. Once you're ready, save it to start adding link groups below."}
                 </p>
                 <Button onClick={handleSavePristineOrSharedPage} size="lg" disabled={isSavingNewPage}>
                   {isSavingNewPage ? (
@@ -402,13 +396,17 @@ function PageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page" : "Save and Start Using This Page"}
+                  {initialSharedData ? "Save This Shared Page to My Dashboard" : "Save and Start Using This Page"}
                 </Button>
-                 <p className="text-sm text-muted-foreground mt-6">
-                  After saving, you'll be able to add and organize your link groups.
-                </p>
+                {!initialSharedData && (
+                   <p className="text-sm text-muted-foreground mt-4">
+                    After saving, you'll be able to add and organize your link groups below.
+                  </p>
+                )}
               </div>
-            ) : (
+            )}
+            
+            {appData && (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -523,10 +521,10 @@ function PageSkeletonForSuspense() {
         <div className="mb-8 text-center">
           <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
         </div>
-         <div className="flex justify-center mb-10"> {/* Centered prominent button skeleton */}
+         <div className="flex justify-center mb-10"> 
           <Skeleton className="h-12 w-64" />
         </div>
-        <div className="text-center"> {/* Placeholder for explanatory text */}
+        <div className="text-center"> 
           <Skeleton className="h-5 w-1/2 mx-auto mb-2"/>
           <Skeleton className="h-5 w-2/3 mx-auto"/>
         </div>
@@ -535,3 +533,5 @@ function PageSkeletonForSuspense() {
   );
 }
 
+
+    
