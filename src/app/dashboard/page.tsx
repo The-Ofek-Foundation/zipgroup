@@ -5,10 +5,13 @@ import type React from "react";
 import { useEffect, useState }
 from "react";
 import Link from "next/link";
+import { ThemeSwitcher } from "@/components/theme/theme-switcher";
+import { CustomColorPicker } from "@/components/theme/custom-color-picker";
+import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2 } from "lucide-react"; // Added Share2
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { AppData } from "@/lib/types";
 import { format } from 'date-fns';
+import { hexToHslValues } from "@/lib/color-utils";
 import {
   DndContext,
   closestCenter,
@@ -57,7 +61,7 @@ interface StoredPage {
 interface SortablePageCardItemProps {
   page: StoredPage;
   onDelete: (hash: string) => void;
-  onShare: (hash: string) => void; // Added onShare prop
+  onShare: (hash: string) => void;
 }
 
 function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemProps) {
@@ -166,7 +170,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 size="sm"
                 aria-label={`Delete page ${page.title}`}
                 onClick={(e) => { stopPropagationForEvents(e); setIsDeleteDialogOpen(true); }}
-                onPointerDown={stopPropagationForEvents} // Keep for drag, but ensure DialogTrigger behavior is not hampered
+                // onPointerDown={stopPropagationForEvents} // Removed to allow dialog interaction with drag delay
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -201,6 +205,15 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
+  const { 
+    themeMode, 
+    customPrimaryColor, 
+    isLoading: isThemeLoading, 
+    setDashboardThemeMode, 
+    setDashboardCustomPrimaryColor 
+  } = useDashboardTheme();
+
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
   useEffect(() => {
     const allLoadedPages: StoredPage[] = [];
@@ -279,8 +292,41 @@ export default function DashboardPage() {
 
       setPages([...finalPages, ...remainingPages]);
     }
-    setIsLoading(false);
+    setInitialDataLoaded(true); 
   }, []);
+
+  useEffect(() => {
+    if (initialDataLoaded && !isThemeLoading) {
+      setIsLoading(false);
+    }
+  }, [initialDataLoaded, isThemeLoading]);
+
+  useEffect(() => {
+    if (isThemeLoading || typeof window === 'undefined') return;
+
+    const root = document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(themeMode);
+
+    if (customPrimaryColor) {
+      const hslValues = hexToHslValues(customPrimaryColor);
+      if (hslValues) {
+        const hslString = `${hslValues.h} ${hslValues.s}% ${hslValues.l}%`;
+        root.style.setProperty('--primary', hslString);
+        root.style.setProperty('--accent', hslString);
+        const ringL = Math.max(0, hslValues.l - 6);
+        root.style.setProperty('--ring', `${hslValues.h} ${hslValues.s}% ${ringL}%`);
+      } else {
+        root.style.removeProperty('--primary');
+        root.style.removeProperty('--accent');
+        root.style.removeProperty('--ring');
+      }
+    } else {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--accent');
+      root.style.removeProperty('--ring');
+    }
+  }, [themeMode, customPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
     router.push("/");
@@ -314,7 +360,6 @@ export default function DashboardPage() {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        // Create a shareable version, excluding lastModified
         const { lastModified, ...shareableData } = parsedData;
         
         const jsonString = JSON.stringify(shareableData);
@@ -374,7 +419,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-xl text-muted-foreground">Loading your ZipGroup pages...</p>
+        <p className="text-xl text-muted-foreground">Loading your ZipGroup dashboard...</p>
       </div>
     );
   }
@@ -390,10 +435,20 @@ export default function DashboardPage() {
                 <h1 className="text-2xl font-semibold">ZipGroup Dashboard</h1>
               </Link>
             </div>
-            <Button onClick={handleCreateNewPage} size="sm">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create New Page
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCreateNewPage} size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Page
+              </Button>
+              <CustomColorPicker
+                currentCustomColor={customPrimaryColor}
+                onSetCustomColor={setDashboardCustomPrimaryColor}
+              />
+              <ThemeSwitcher
+                theme={themeMode}
+                setTheme={setDashboardThemeMode}
+              />
+            </div>
           </div>
         </header>
 
@@ -419,7 +474,7 @@ export default function DashboardPage() {
                       key={page.hash} 
                       page={page} 
                       onDelete={handleDeletePage}
-                      onShare={handleSharePage} // Pass down onShare
+                      onShare={handleSharePage}
                     />
                   ))}
                 </div>
