@@ -5,7 +5,7 @@ import type { AppData, LinkGroup } from "@/lib/types";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
-const LOCAL_STORAGE_PREFIX = "linkwarp_";
+const LOCAL_STORAGE_PREFIX = "linkwarp_"; // Keep this to preserve old data, or change to "zipgroup_" to start fresh
 
 function generateRandomHash(length = 8) {
   return Math.random().toString(36).substring(2, 2 + length);
@@ -25,7 +25,8 @@ export function useAppData() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const currentHashRef = useRef<string | null>(currentHash);
+  // Ref to hold currentHash for the event listener to avoid stale closures
+  const currentHashRef = useRef<string | null>(null);
   useEffect(() => {
     currentHashRef.current = currentHash;
   }, [currentHash]);
@@ -35,6 +36,10 @@ export function useAppData() {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
+        // Migrate old titles
+        if (parsedData.pageTitle && parsedData.pageTitle.startsWith("LinkWarp Page")) {
+            parsedData.pageTitle = `ZipGroup Page ${hash}`;
+        }
         if (!parsedData.theme) {
           parsedData.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
@@ -66,20 +71,22 @@ export function useAppData() {
       if (loaded) {
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
-        hashToUse = initialHash;
+        // No data for this hash, create new default data
+        hashToUse = initialHash; // Keep the hash from the URL
         dataToLoad = { 
           ...defaultAppDataBase, 
-          pageTitle: `LinkWarp Page ${hashToUse}`, 
+          pageTitle: `ZipGroup Page ${hashToUse}`, 
           theme: systemTheme, 
           customPrimaryColor: undefined 
         };
         saveData(hashToUse, dataToLoad);
       }
     } else {
+      // No hash in URL, generate new page
       hashToUse = generateRandomHash();
       dataToLoad = { 
         ...defaultAppDataBase, 
-        pageTitle: `LinkWarp Page ${hashToUse}`,
+        pageTitle: `ZipGroup Page ${hashToUse}`,
         theme: systemTheme, 
         customPrimaryColor: undefined 
       };
@@ -100,9 +107,10 @@ export function useAppData() {
         if (newData) {
           setAppData({ ...newData, theme: newData.theme || currentSystemTheme });
         } else {
+          // Navigated to a hash with no data, create new default data for this hash
           const freshData: AppData = { 
             ...defaultAppDataBase, 
-            pageTitle: `LinkWarp Page ${newHash}`, 
+            pageTitle: `ZipGroup Page ${newHash}`, 
             theme: currentSystemTheme, 
             customPrimaryColor: undefined 
           };
@@ -122,13 +130,15 @@ export function useAppData() {
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
       if (!prevData || !currentHashRef.current) {
-          return prevData;
+          // This might happen if currentHash is not yet set, though unlikely with the new effect order
+          console.warn("Attempted to update appData before it was fully initialized or hash was available.");
+          return prevData; 
       }
       const newData = { ...prevData, ...updates };
       saveData(currentHashRef.current, newData);
       return newData;
     });
-  }, [saveData]);
+  }, [saveData]); // saveData is stable
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -150,15 +160,16 @@ export function useAppData() {
     const newHash = generateRandomHash();
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     
+    // Use current app's theme and custom color if available, otherwise system defaults
     const newPageData: AppData = { 
       ...defaultAppDataBase,
-      pageTitle: `LinkWarp Page ${newHash}`, 
-      theme: appData?.theme || currentSystemTheme, // Use current appData's theme if available
-      customPrimaryColor: undefined 
+      pageTitle: `ZipGroup Page ${newHash}`, 
+      theme: appData?.theme || currentSystemTheme, 
+      customPrimaryColor: appData?.customPrimaryColor // Carry over custom color if set
     };
     saveData(newHash, newPageData);
-    window.location.hash = newHash; 
-  }, [saveData, appData?.theme]);
+    window.location.hash = newHash; // This will trigger the hashchange listener to load the new page data
+  }, [saveData, appData?.theme, appData?.customPrimaryColor]);
 
 
   return {

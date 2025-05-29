@@ -194,7 +194,7 @@ export default function Home() {
           />
           <footer className="py-6 text-center text-sm text-muted-foreground">
             <div className="flex items-center justify-center gap-2">
-              <span>Powered by LinkWarp. Your current page hash:</span>
+              <span>Powered by ZipGroup.link. Your current page hash:</span>
               <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
               {currentHash && (
                 <Tooltip>

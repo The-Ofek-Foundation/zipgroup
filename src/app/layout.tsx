@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'LinkWarp', // Default title, will be overridden by pageTitle
-  description: 'Warp through your links with organized groups.',
+  title: 'ZipGroup', // Default title, will be overridden by pageTitle
+  description: 'Organize and share groups of links with ZipGroup.link.',
 };
 
 export default function RootLayout({

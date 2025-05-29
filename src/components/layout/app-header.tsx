@@ -24,7 +24,7 @@ export function AppHeader({
       <div className="container mx-auto flex h-16 items-center justify-between p-4">
         <div className="flex items-center gap-2">
           <Zap className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold text-primary">LinkWarp</h1>
+          <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
         </div>
         {/* Page title input removed from here */}
         <div className="flex items-center gap-1">
