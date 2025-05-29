@@ -9,10 +9,10 @@ import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dia
 import type { LinkGroup, AppData } from "@/lib/types";
 import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import { Skeleton } from "@/components/ui/skeleton"; 
-import { Button } from "@/components/ui/button"; 
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy } from "lucide-react"; 
+import { ClipboardCopy, Save, Loader2, Info } from "lucide-react"; // Added Save, Loader2, Info
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
@@ -29,32 +29,71 @@ import {
 import {
   arrayMove,
   SortableContext,
-  rectSortingStrategy, 
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; 
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // This should match useAppData
 
 function PageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
+  const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
+  const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
+  
+  // Effect to process sharedData query parameter ONCE
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !sharedDataProcessed) {
+      const sharedDataParam = searchParams.get('sharedData');
+      if (sharedDataParam && !window.location.hash) { // Only process if no hash and sharedData exists
+        try {
+          const decodedJson = decodeURIComponent(sharedDataParam);
+          const parsedData = JSON.parse(decodedJson) as AppData;
+          // Validate parsedData structure if necessary
+          setInitialSharedData(parsedData);
+          toast({
+            title: "Shared Page Loaded",
+            description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
+            duration: 7000,
+          });
+          // Clean the URL by removing the sharedData query parameter
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('sharedData');
+          router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+        } catch (error) {
+          console.error("Failed to parse sharedData:", error);
+          toast({
+            title: "Error Loading Shared Page",
+            description: "The shared link seems to be invalid or corrupted.",
+            variant: "destructive",
+          });
+          router.replace(pathname, { scroll: false }); // Clean URL
+        }
+      }
+      setSharedDataProcessed(true); // Mark as processed to prevent re-running
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router, pathname, toast, sharedDataProcessed]); // Add sharedDataProcessed
+
   const {
     isLoading,
     appData,
     setPageTitle,
     setLinkGroups,
     setTheme,
-    createNewPage,
-    currentHash, 
+    createNewPageFromAppData, // Renamed from createNewPage
+    createNewBlankPage, // New function for header's "New Page"
+    currentHash,
     setCustomPrimaryColor,
-  } = useAppData();
-  
-  const { toast } = useToast();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams(); 
+  } = useAppData(initialSharedData); // Pass initialSharedData to the hook
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
   const [localPageTitle, setLocalPageTitle] = useState("");
+  const [isSavingNewPage, setIsSavingNewPage] = useState(false); // For "Save This Page" button state
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -69,10 +108,10 @@ function PageContent() {
 
   const handlePageTitleBlur = () => {
     if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle);
+      setPageTitle(localPageTitle); // This will update transient state if no hash, or save if hash exists
     }
   };
-  
+
   const handlePageTitleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       if (appData && localPageTitle !== appData.pageTitle) {
@@ -83,16 +122,15 @@ function PageContent() {
   };
 
   const handleCopyPageUrl = async () => {
-    if (!currentHash) {
+    if (!currentHash) { // Should only be available for saved pages
       toast({
         title: "Error",
-        description: "Page URL not available yet.",
+        description: "Page URL not available until the page is saved.",
         variant: "destructive",
       });
       return;
     }
     try {
-      // Ensure we copy the URL without any active query parameters like openGroupInNewWindow
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -116,24 +154,17 @@ function PageContent() {
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     const newPageData: AppData = {
-      linkGroups: [], // New page starts empty
-      pageTitle: `ZipGroup Page ${newHash}`, // Default title for the new page
-      theme: appData.theme || currentSystemTheme, // Inherit theme
-      customPrimaryColor: appData.customPrimaryColor, // Inherit custom color
-      // lastModified will be set when/if this new page is first saved with content
+      linkGroups: [],
+      pageTitle: `ZipGroup Page ${newHash}`,
+      theme: appData.theme || currentSystemTheme,
+      customPrimaryColor: appData.customPrimaryColor,
     };
 
     try {
-      // We save this empty page data so that when the new tab opens, it finds it.
-      // If the user adds no groups, it will be cleaned up eventually by dashboard or useAppData.
       localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
     } catch (error) {
       console.error("Failed to save data for new tab:", error);
-      toast({
-        title: "Error Preparing New Page",
-        description: "Could not save settings for the new tab.",
-        variant: "destructive",
-      });
+      // toast error
       return;
     }
 
@@ -142,7 +173,7 @@ function PageContent() {
   };
 
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-    if (!currentHash) { 
+    if (!currentHash) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
       return;
     }
@@ -150,10 +181,7 @@ function PageContent() {
       toast({ title: "No URLs", description: "This group has no URLs to open.", variant: "default" });
       return;
     }
-
-    // Construct the special URL with the query parameter *before* the hash
     const specialUrl = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
-
     try {
       await navigator.clipboard.writeText(specialUrl);
       toast({
@@ -169,7 +197,7 @@ function PageContent() {
             <p className="mt-2">The new window will then open all links from the group "{groupToOpen.name}".</p>
           </div>
         ),
-        duration: 15000, 
+        duration: 15000,
       });
     } catch (err) {
       console.error("Failed to copy special URL for new window: ", err);
@@ -181,95 +209,53 @@ function PageContent() {
     }
   };
 
-
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    
-    console.log('[OpenInNewWindowEffect] Triggered. GroupID (from query param):', groupIdToOpen, 'isLoading:', isLoading, 'appData:', !!appData, 'currentHash (from useAppData):', currentHash);
-
     if (groupIdToOpen && appData && !isLoading && currentHash) {
-      console.log('[OpenInNewWindowEffect] Conditions met. Processing group ID:', groupIdToOpen);
-      console.log('[OpenInNewWindowEffect] Link groups available:', appData.linkGroups);
-
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      console.log('[OpenInNewWindowEffect] Found group:', group);
-
-      // URL to redirect to after processing (clears the query param, keeps the hash)
       const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
-        console.log('[OpenInNewWindowEffect] Group has URLs. URLs:', group.urls);
         toast({
           title: `Opening "${group.name}"...`,
-          description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. Please check it if links do not appear. This tab will become the first link.`,
-          duration: 10000, 
+          description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. This tab will become the first link.`,
+          duration: 10000,
         });
-
         const [firstUrl, ...otherUrls] = group.urls;
-        console.log('[OpenInNewWindowEffect] First URL:', firstUrl, 'Other URLs:', otherUrls);
-
         otherUrls.forEach(url => {
           try {
-            new URL(url); 
-            console.log(`[OpenInNewWindowEffect] Attempting to open (other): ${url}`);
+            new URL(url);
             const newTab = window.open(url, '_blank');
-            if (newTab) {
-              console.log(`[OpenInNewWindowEffect] Successfully initiated opening for: ${url}`);
-            } else {
-              console.warn(`[OpenInNewWindowEffect] window.open returned falsy for: ${url}. Popup blocker might still be active or other issue.`);
+            if (!newTab) {
               toast({ title: "Popup Might Be Active", description: `Could not open: ${url}. Check popup blocker.`, variant: "destructive", duration: 6000 });
             }
           } catch (e) {
-            console.warn(`[OpenInNewWindowEffect] Invalid URL skipped in new window: ${url}`, e);
             toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
           }
         });
-        
-        // Clear the query parameter first
-        console.log(`[OpenInNewWindowEffect] Clearing query param, new URL: ${urlToClearParamsFrom}`);
-        router.replace(urlToClearParamsFrom, { scroll: false }); 
-
-        // Then attempt to navigate the current tab
-        try {
-          new URL(firstUrl); 
-          console.log(`[OpenInNewWindowEffect] Attempting to navigate current tab to first URL after delay: ${firstUrl}`);
-          // A small delay can sometimes help ensure other tabs have initiated opening.
-          setTimeout(() => {
-             console.log(`[OpenInNewWindowEffect] Timeout: Navigating to ${firstUrl}`);
-             window.location.replace(firstUrl); 
-          }, 250); 
-        } catch (e) {
-           console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
-           toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
-           // The URL is already cleaned by router.replace above, so no further action needed here for URL.
-        }
-
+        router.replace(urlToClearParamsFrom, { scroll: false });
+        setTimeout(() => {
+          try {
+            new URL(firstUrl);
+            window.location.replace(firstUrl);
+          } catch (e) {
+            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
+          }
+        }, 250);
       } else if (group && group.urls.length === 0) {
-        console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        console.log(`[OpenInNewWindowEffect] Clearing query param (group has no URLs), new URL: ${urlToClearParamsFrom}`);
-        router.replace(urlToClearParamsFrom, { scroll: false }); 
-      } else if (group === undefined) { // Explicitly check for undefined
-        console.log('[OpenInNewWindowEffect] Group not found for ID:', groupIdToOpen);
+        router.replace(urlToClearParamsFrom, { scroll: false });
+      } else if (group === undefined) {
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        console.log(`[OpenInNewWindowEffect] Clearing query param (group not found), new URL: ${urlToClearParamsFrom}`);
-        router.replace(urlToClearParamsFrom, { scroll: false }); 
+        router.replace(urlToClearParamsFrom, { scroll: false });
       }
-    } else {
-        // Log if groupIdToOpen is present but other conditions aren't met
-        if (groupIdToOpen && (isLoading || !appData || !currentHash) ) { 
-            console.log('[OpenInNewWindowEffect] Conditions not met yet. GroupID parsed:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
-        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]); // setLinkGroups was removed as it's not directly used for mutation here.
+  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 150, // User must press and hold for 150ms
-        tolerance: 5, // And move less than 5px during that time
-      },
+      activationConstraint: { delay: 150, tolerance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -281,7 +267,6 @@ function PageContent() {
     if (active && over && active.id !== over.id && appData) {
       const oldIndex = appData.linkGroups.findIndex((g) => g.id === active.id);
       const newIndex = appData.linkGroups.findIndex((g) => g.id === over.id);
-
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedGroups = arrayMove(appData.linkGroups, oldIndex, newIndex);
         setLinkGroups(reorderedGroups);
@@ -289,14 +274,13 @@ function PageContent() {
     }
   };
 
-
-  if (isLoading || !appData) {
+  if (isLoading || !appData || !sharedDataProcessed) { // Wait for sharedData processing too
     return (
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <Skeleton className="h-8 w-32" /> 
-            <div className="flex items-center gap-2"> 
+            <Skeleton className="h-8 w-32" />
+            <div className="flex items-center gap-2">
               <Skeleton className="h-9 w-24" />
               <Skeleton className="h-9 w-9 rounded-md" />
               <Skeleton className="h-9 w-9 rounded-md" />
@@ -304,7 +288,7 @@ function PageContent() {
           </div>
         </header>
         <main className="flex-grow container mx-auto p-4 md:p-8">
-           <div className="mb-8 text-center"> 
+           <div className="mb-8 text-center">
             <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
           </div>
           <div className="flex justify-end mb-6">
@@ -336,9 +320,7 @@ function PageContent() {
     toast({ title: "Group Deleted", description: `"${groupToDelete.name}" has been removed.` });
   };
 
-  const handleOpenGroup = (group: LinkGroup) => {
-    // This function is primarily for the toast in LinkGroupCard, actual opening happens there.
-  };
+  const handleOpenGroup = (group: LinkGroup) => { /* For toast in LinkGroupCard */ };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
     const existingGroupIndex = appData.linkGroups.findIndex(g => g.id === groupData.id);
@@ -355,16 +337,37 @@ function PageContent() {
     setIsFormOpen(false);
   };
 
+  const handleSavePristineOrSharedPage = async () => {
+    setIsSavingNewPage(true);
+    const newHash = createNewPageFromAppData(); // This will save current appData (pristine or shared)
+    if (newHash) {
+      // The hashchange listener in useAppData should handle the navigation and data reload.
+      // No explicit router.push needed here as window.location.hash is set by createNewPageFromAppData.
+      toast({
+        title: "Page Saved!",
+        description: "Your new ZipGroup page is ready.",
+      });
+    } else {
+       toast({
+        title: "Save Failed",
+        description: "Could not save the page. Please try again.",
+        variant: "destructive",
+      });
+    }
+    setIsSavingNewPage(false);
+  };
+
+  const isPristineOrSharedPage = !currentHash && appData;
 
   return (
-    <ThemeProvider 
+    <ThemeProvider
       appData={appData}
       onThemeChange={setTheme}
     >
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewPage}
+            onCreateNewPage={createNewBlankPage} // Header "New Page" creates a blank one
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
           />
@@ -381,25 +384,51 @@ function PageContent() {
                 aria-label="Page Title"
               />
             </div>
-            <DndContext 
-              sensors={sensors} 
-              collisionDetection={closestCenter} 
-              onDragEnd={handleDragEndLinkGroups}
-            >
-              <SortableContext 
-                items={appData.linkGroups.map(g => g.id)} 
-                strategy={rectSortingStrategy}
+
+            {isPristineOrSharedPage ? (
+              <div className="text-center py-10 px-4">
+                <Info className="mx-auto h-12 w-12 text-primary mb-6" />
+                <h2 className="text-2xl font-semibold text-foreground mb-3">
+                  {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
+                </h2>
+                <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+                  {initialSharedData
+                    ? "This is a preview of a shared ZipGroup page. You can customize the title and theme above."
+                    : "Customize your new page's title and theme above. Once you're ready, save it to start adding link groups."}
+                </p>
+                <Button onClick={handleSavePristineOrSharedPage} size="lg" disabled={isSavingNewPage}>
+                  {isSavingNewPage ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-5 w-5" />
+                  )}
+                  {initialSharedData ? "Save This Shared Page" : "Save and Start Using This Page"}
+                </Button>
+                 <p className="text-sm text-muted-foreground mt-6">
+                  After saving, you'll be able to add and organize your link groups.
+                </p>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEndLinkGroups}
               >
-                <LinkGroupList
-                  groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup}
-                  onEditGroup={handleEditGroup}
-                  onDeleteGroup={handleDeleteGroup}
-                  onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow}
-                />
-              </SortableContext>
-            </DndContext>
+                <SortableContext
+                  items={appData.linkGroups.map(g => g.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <LinkGroupList
+                    groups={appData.linkGroups}
+                    onAddGroup={handleAddGroup}
+                    onEditGroup={handleEditGroup}
+                    onDeleteGroup={handleDeleteGroup}
+                    onOpenGroup={handleOpenGroup}
+                    onOpenInNewWindow={handleOpenGroupInNewWindow}
+                  />
+                </SortableContext>
+              </DndContext>
+            )}
           </main>
           <LinkGroupFormDialog
             isOpen={isFormOpen}
@@ -417,20 +446,22 @@ function PageContent() {
               >
                 ZipGroup.link
               </Button>
-              <span className="hidden sm:inline">. Your current page hash:</span>
-              <span className="sm:hidden">. Hash:</span>
-              <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
               {currentHash && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} aria-label="Copy page URL" className="h-6 w-6">
-                      <ClipboardCopy className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Copy page URL</p>
-                  </TooltipContent>
-                </Tooltip>
+                <>
+                  <span className="hidden sm:inline">. Your current page hash:</span>
+                  <span className="sm:hidden">. Hash:</span>
+                  <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash}</code>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} aria-label="Copy page URL" className="h-6 w-6">
+                        <ClipboardCopy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Copy page URL</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </>
               )}
             </div>
           </footer>
@@ -476,6 +507,7 @@ export default function Home() {
 }
 
 function PageSkeletonForSuspense() {
+  // This skeleton is for the initial Suspense boundary for useSearchParams
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -491,15 +523,15 @@ function PageSkeletonForSuspense() {
         <div className="mb-8 text-center">
           <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
         </div>
-        <div className="flex justify-end mb-6">
-            <Skeleton className="h-10 w-40" />
+         <div className="flex justify-center mb-10"> {/* Centered prominent button skeleton */}
+          <Skeleton className="h-12 w-64" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => (
-            <CardSkeleton key={i} />
-          ))}
+        <div className="text-center"> {/* Placeholder for explanatory text */}
+          <Skeleton className="h-5 w-1/2 mx-auto mb-2"/>
+          <Skeleton className="h-5 w-2/3 mx-auto"/>
         </div>
       </main>
     </div>
   );
 }
+

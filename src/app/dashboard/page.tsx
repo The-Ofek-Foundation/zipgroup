@@ -2,21 +2,22 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState }
+from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, GripVertical } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2 } from "lucide-react"; // Added Share2
 import {
-  Dialog, // Changed from AlertDialog
+  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"; // Changed from AlertDialog
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { AppData } from "@/lib/types";
 import { format } from 'date-fns';
@@ -38,6 +39,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
@@ -54,9 +57,10 @@ interface StoredPage {
 interface SortablePageCardItemProps {
   page: StoredPage;
   onDelete: (hash: string) => void;
+  onShare: (hash: string) => void; // Added onShare prop
 }
 
-function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
+function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const {
     attributes,
@@ -72,7 +76,7 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
     transition: transition || 'transform 250ms ease',
   };
 
-  const stopPropagationForLink = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
+  const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
 
@@ -93,10 +97,10 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
           <Link
             href={`/#${page.hash}`}
             className="block group"
-            onClick={stopPropagationForLink}
-            onPointerDown={stopPropagationForLink}
-            onKeyDown={stopPropagationForLink} 
-            tabIndex={0} 
+            onClick={stopPropagationForEvents}
+            onPointerDown={stopPropagationForEvents}
+            onKeyDown={stopPropagationForEvents}
+            tabIndex={0}
           >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
               {page.title}
@@ -135,16 +139,34 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
             </div>
           )}
         </CardContent>
-        <CardFooter className="pt-4 border-t">
+        <CardFooter className="pt-4 border-t flex justify-between items-center">
+          {/* Share Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => { stopPropagationForEvents(e); onShare(page.hash); }}
+                onPointerDown={stopPropagationForEvents}
+                aria-label={`Share page ${page.title}`}
+              >
+                <Share2 className="mr-2 h-4 w-4" /> Share
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Copy share link for this page</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Delete Button Dialog */}
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogTrigger asChild>
-              {/* No onPointerDown on DialogTrigger, rely on drag sensor activation delay */}
               <Button
                 variant="destructive"
                 size="sm"
-                className="w-full"
                 aria-label={`Delete page ${page.title}`}
-                onClick={() => setIsDeleteDialogOpen(true)}
+                onClick={(e) => { stopPropagationForEvents(e); setIsDeleteDialogOpen(true); }}
+                onPointerDown={stopPropagationForEvents} // Keep for drag, but ensure DialogTrigger behavior is not hampered
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -161,7 +183,6 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
                 <Button
                   variant="destructive"
                   onClick={() => { onDelete(page.hash); setIsDeleteDialogOpen(false); }}
-                  // className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" // variant="destructive" handles this
                 >
                   Delete Page
                 </Button>
@@ -206,8 +227,8 @@ export default function DashboardPage() {
               const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
 
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
-                localStorage.removeItem(key); 
-                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); 
+                localStorage.removeItem(key);
+                initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
                 continue;
               }
 
@@ -233,7 +254,7 @@ export default function DashboardPage() {
       if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
-      
+
       const pageMap = new Map(allLoadedPages.map(p => [p.hash, p]));
       const finalPages: StoredPage[] = [];
       const processedHashes = new Set<string>();
@@ -249,11 +270,11 @@ export default function DashboardPage() {
       const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
-          return b.lastModified - a.lastModified; 
+          return b.lastModified - a.lastModified;
         }
-        if (a.lastModified) return -1; 
+        if (a.lastModified) return -1;
         if (b.lastModified) return 1;
-        return a.title.localeCompare(b.title); 
+        return a.title.localeCompare(b.title);
       });
 
       setPages([...finalPages, ...remainingPages]);
@@ -288,11 +309,42 @@ export default function DashboardPage() {
     }
   };
 
+  const handleSharePage = async (hash: string) => {
+    try {
+      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData) as AppData;
+        // Create a shareable version, excluding lastModified
+        const { lastModified, ...shareableData } = parsedData;
+        
+        const jsonString = JSON.stringify(shareableData);
+        const encodedJson = encodeURIComponent(jsonString);
+        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+        
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: "Share Link Copied!",
+          description: "The link to share this page has been copied to your clipboard.",
+          duration: 7000,
+        });
+      } else {
+        throw new Error("Page data not found for sharing.");
+      }
+    } catch (error) {
+      console.error("Failed to create share link:", error);
+      toast({
+        title: "Share Failed",
+        description: "Could not create or copy the share link.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 150, 
-        tolerance: 5, 
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -306,7 +358,7 @@ export default function DashboardPage() {
       setPages((currentPages) => {
         const oldIndex = currentPages.findIndex((p) => p.hash === active.id);
         const newIndex = currentPages.findIndex((p) => p.hash === over.id);
-        if (oldIndex === -1 || newIndex === -1) return currentPages; 
+        if (oldIndex === -1 || newIndex === -1) return currentPages;
 
         const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
         const newOrderOfHashes = reorderedPages.map(p => p.hash);
@@ -328,50 +380,57 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 items-center justify-between p-4">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors">
-              <Home className="h-6 w-6" />
-              <h1 className="text-2xl font-semibold">ZipGroup Dashboard</h1>
-            </Link>
-          </div>
-          <Button onClick={handleCreateNewPage} size="sm">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Create New Page
-          </Button>
-        </div>
-      </header>
-
-      <main className="flex-grow container mx-auto p-4 md:p-8">
-        {pages.length === 0 ? (
-          <div className="text-center py-16">
-            <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
-            <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
-            <p className="mt-2 text-lg text-muted-foreground">
-              Looks like your dashboard is empty. Let's create your first page!
-            </p>
-            <Button onClick={handleCreateNewPage} className="mt-8" size="lg">
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Create Your First Page
+    <TooltipProvider delayDuration={100}>
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
+        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
+          <div className="container mx-auto flex h-16 items-center justify-between p-4">
+            <div className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors">
+                <Home className="h-6 w-6" />
+                <h1 className="text-2xl font-semibold">ZipGroup Dashboard</h1>
+              </Link>
+            </div>
+            <Button onClick={handleCreateNewPage} size="sm">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Create New Page
             </Button>
           </div>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
-            <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {pages.map(page => (
-                  <SortablePageCardItem key={page.hash} page={page} onDelete={handleDeletePage} />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </main>
-      <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
-      </footer>
-    </div>
+        </header>
+
+        <main className="flex-grow container mx-auto p-4 md:p-8">
+          {pages.length === 0 ? (
+            <div className="text-center py-16">
+              <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
+              <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
+              <p className="mt-2 text-lg text-muted-foreground">
+                Looks like your dashboard is empty. Let's create your first page!
+              </p>
+              <Button onClick={handleCreateNewPage} className="mt-8" size="lg">
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Create Your First Page
+              </Button>
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
+              <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {pages.map(page => (
+                    <SortablePageCardItem 
+                      key={page.hash} 
+                      page={page} 
+                      onDelete={handleDeletePage}
+                      onShare={handleSharePage} // Pass down onShare
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </main>
+        <footer className="py-6 text-center text-sm text-muted-foreground border-t">
+          Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
+        </footer>
+      </div>
+    </TooltipProvider>
   );
 }
