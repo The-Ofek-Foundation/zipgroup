@@ -6,6 +6,7 @@ import { SortableLinkGroupItem } from "./sortable-link-group-item";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, LayoutGrid } from "lucide-react";
 import { LinkGroupCard } from "./link-group-card"; 
+import { EmptyStateMessage } from "@/components/ui/empty-state-message";
 
 interface LinkGroupListProps {
   groups: LinkGroup[];
@@ -26,30 +27,24 @@ export function LinkGroupList({
   onOpenInNewWindow,
   isReadOnlyPreview = false,
 }: LinkGroupListProps) {
-  if (groups.length === 0 && isReadOnlyPreview) { // Show different message for read-only empty state
+  if (groups.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-center py-16">
-        <LayoutGrid className="h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">No Link Groups Here</h2>
-        <p className="text-muted-foreground mb-6">
-          This shared page currently has no link groups. Save it to your dashboard to add some!
-        </p>
-      </div>
-    );
-  }
-  
-  if (groups.length === 0 && !isReadOnlyPreview) { // Editable empty state
-     return (
-      <div className="flex flex-col items-center justify-center text-center py-16">
-        <LayoutGrid className="h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">No Link Groups Yet</h2>
-        <p className="text-muted-foreground mb-6">
-          Get started by creating your first link group.
-        </p>
-        <Button onClick={onAddGroup} size="lg" data-joyride="add-new-group-button">
-          <PlusCircle className="mr-2 h-5 w-5" /> Add New Group
-        </Button>
-      </div>
+      <EmptyStateMessage
+        icon={<LayoutGrid className="h-16 w-16" />}
+        title={isReadOnlyPreview ? "No Link Groups Here" : "No Link Groups Yet"}
+        description={
+          isReadOnlyPreview
+            ? "This shared page currently has no link groups. Save it to your home page to add some!"
+            : "Get started by creating your first link group."
+        }
+        actions={
+          !isReadOnlyPreview ? (
+            <Button onClick={onAddGroup} size="lg" data-joyride="add-new-group-button">
+              <PlusCircle className="mr-2 h-5 w-5" /> Add New Group
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

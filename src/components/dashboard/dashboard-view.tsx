@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppData } from "@/hooks/use-app-data";
 import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
@@ -35,6 +35,9 @@ import { cn } from "@/lib/utils";
 import type { AppData } from "@/lib/types";
 import { AppFooter } from "@/components/layout/app-footer";
 import { AppHeader } from "@/components/layout/app-header";
+import { EmptyStateMessage } from "@/components/ui/empty-state-message";
+import { PageContentSpinner } from "@/components/ui/page-content-spinner";
+
 
 const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
@@ -162,12 +165,11 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
 
             <Tooltip>
               <TooltipTrigger asChild>
-                {/* The Button is the direct child that DialogTrigger needs for asChild */}
                 <Button
                   variant="destructive"
                   size="sm"
                   aria-label={`Delete page ${page.title}`}
-                  onClick={() => setIsDeleteDialogOpen(true)} // No stopPropagation for DialogTrigger
+                  onClick={() => setIsDeleteDialogOpen(true)} 
                   // onPointerDown is NOT stopped for DialogTrigger to allow dnd-kit activation constraints
                 >
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -232,7 +234,8 @@ export function DashboardView() {
         DASHBOARD_ORDER_KEY,
         DASHBOARD_THEME_MODE_KEY,
         DASHBOARD_CUSTOM_COLOR_KEY,
-        JOYRIDE_SAMPLE_TAKEN_KEY
+        JOYRIDE_SAMPLE_TAKEN_KEY,
+        "linkwarp_joyride_pristine_taken" // From an older joyride version
       ];
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -250,7 +253,7 @@ export function DashboardView() {
 
               // Validate if parsedData looks like AppData
               if (typeof parsedData.pageTitle !== 'string' || !Array.isArray(parsedData.linkGroups)) {
-                console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData (parsed to: ${typeof parsedData}).`);
+                console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
                 continue;
               }
 
@@ -435,20 +438,20 @@ export function DashboardView() {
   if (isLoadingData) {
     return (
       <div className="min-h-screen flex flex-col">
-        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-          <div className="container mx-auto flex h-16 items-center justify-between p-4">
-             <div className="flex items-center gap-2">
-                <PageHomeIcon className="h-7 w-7 text-primary" />
-                <h1 className="text-2xl font-bold">ZipGroup</h1>
-              </div>
-             <div className="flex items-center gap-2">
-                {/* Skeletons for theme controls */}
-             </div>
-          </div>
-        </header>
-        <main className="flex-grow container mx-auto p-4 md:p-8 flex items-center justify-center">
-            <p className="text-xl text-muted-foreground">Loading your ZipGroup home...</p>
+         <AppHeader
+            onCreateNewPage={handleCreateNewPage}
+            customPrimaryColor={dashboardCustomPrimaryColor}
+            onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
+            themeMode={dashboardThemeMode}
+            onSetThemeMode={setDashboardThemeMode}
+            showHomePageLink={false}
+            showSamplePageLink={true}
+            showShareButton={false}
+        />
+        <main className="flex-grow container mx-auto p-4 md:p-8">
+          <PageContentSpinner text="Loading your ZipGroup home..." />
         </main>
+        <AppFooter onCreateNewPage={handleCreateNewPage} />
       </div>
     );
   }
@@ -468,25 +471,25 @@ export function DashboardView() {
         />
         <main className="flex-grow container mx-auto p-4 md:p-8">
           {pages.length === 0 ? (
-            <div className="text-center py-16">
-              <PageHomeIcon className="mx-auto h-16 w-16 text-primary mb-6" />
-              <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
-              <p className="mt-2 text-lg text-muted-foreground">
-                Looks like your home page is empty. Let's create your first page!
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-                <Button onClick={handleCreateNewPage} size="lg">
-                  <PlusCircle className="mr-2 h-5 w-5" />
-                  Create Your First Page
-                </Button>
-                 <Button variant="outline" size="lg" asChild>
-                  <Link href="/sample">
-                    <BookOpenCheck className="mr-2 h-5 w-5" />
-                    Explore Sample Page
-                  </Link>
-                </Button>
-              </div>
-            </div>
+            <EmptyStateMessage
+              icon={<PageHomeIcon className="h-16 w-16" />}
+              title="No ZipGroup Pages Yet"
+              description="Looks like your home page is empty. Let's create your first page!"
+              actions={
+                <>
+                  <Button onClick={handleCreateNewPage} size="lg">
+                    <PlusCircle className="mr-2 h-5 w-5" />
+                    Create Your First Page
+                  </Button>
+                  <Button variant="outline" size="lg" asChild>
+                    <Link href="/sample">
+                      <BookOpenCheck className="mr-2 h-5 w-5" />
+                      Explore Sample Page
+                    </Link>
+                  </Button>
+                </>
+              }
+            />
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
               <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>

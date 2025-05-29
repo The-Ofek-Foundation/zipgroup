@@ -10,7 +10,6 @@ import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dia
 import type { LinkGroup, AppData } from "@/lib/types";
 import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
@@ -34,6 +33,8 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { AppFooter } from "@/components/layout/app-footer";
+import { PageContentSpinner } from "@/components/ui/page-content-spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; 
@@ -240,35 +241,7 @@ function SamplePageContent() {
   };
 
   if (isLoading || !appData) {
-     return (
-      <div className="min-h-screen flex flex-col">
-        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-          <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <Skeleton className="h-8 w-32" />
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-9 rounded-md" />
-              <Skeleton className="h-9 w-9 rounded-md" />
-            </div>
-          </div>
-        </header>
-        <main className="flex-grow container mx-auto p-4 md:p-8">
-          <div className="mb-8 text-center">
-            <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
-          </div>
-          <div className="flex justify-end mb-6">
-            <Skeleton className="h-10 w-40" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-4">
-                <div className="flex items-center gap-4"> <Skeleton className="h-12 w-12 rounded-md" /> <div className="space-y-1 flex-1"> <Skeleton className="h-6 w-3/4" /> <Skeleton className="h-4 w-1/2" /> </div> </div> <div className="space-y-2"> <Skeleton className="h-4 w-full" /> <Skeleton className="h-4 w-5/6" /> <Skeleton className="h-4 w-2/3" /> </div> <div className="flex justify-between items-center pt-4 border-t"> <Skeleton className="h-9 w-full mr-2" /> <div className="flex gap-2"> <Skeleton className="h-9 w-9 rounded-md" /> <Skeleton className="h-9 w-9 rounded-md" /> </div> </div>
-              </div>
-            ))}
-          </div>
-        </main>
-      </div>
-    );
+     return <PageContentSpinner />;
   }
 
   const handleAddGroup = () => {
@@ -282,6 +255,7 @@ function SamplePageContent() {
   };
 
   const handleDeleteGroup = (groupToDelete: LinkGroup) => {
+    if (!appData) return;
     const updatedGroups = appData.linkGroups.filter(g => g.id !== groupToDelete.id);
     setLinkGroups(updatedGroups);
     toast({ title: "Group Deleted", description: `"${groupToDelete.name}" has been removed.` });
@@ -290,6 +264,7 @@ function SamplePageContent() {
   const handleOpenGroup = (group: LinkGroup) => { /* For toast in LinkGroupCard */ };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
+    if (!appData) return;
     const existingGroupIndex = appData.linkGroups.findIndex(g => g.id === groupData.id);
     let updatedGroups;
     if (existingGroupIndex > -1) {
@@ -363,6 +338,7 @@ function SamplePageContent() {
             isReadOnlyPreview={false} 
             onInitiateShare={() => toast({ title: "Info", description: "Save this sample page first to get a shareable link."})}
             canShareCurrentPage={false} 
+            showHomePageLink={true}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -449,18 +425,9 @@ function SamplePageContent() {
   );
 }
 
-function PageSkeletonForSuspense() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="h-12 w-12 animate-spin text-primary" />
-    </div>
-  );
-}
-
-
 export default function SamplePage() {
   return (
-    <Suspense fallback={<PageSkeletonForSuspense />}>
+    <Suspense fallback={<PageContentSpinner />}>
       <SamplePageContent />
     </Suspense>
   );
