@@ -4,12 +4,9 @@
 import type { AppData, LinkGroup } from "@/lib/types";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { generateRandomHash } from "@/lib/utils";
 
-const LOCAL_STORAGE_PREFIX = "linkwarp_"; // Keep this to preserve old data, or change to "zipgroup_" to start fresh
-
-function generateRandomHash(length = 8) {
-  return Math.random().toString(36).substring(2, 2 + length);
-}
+const LOCAL_STORAGE_PREFIX = "linkwarp_"; 
 
 // Base default data without volatile fields like pageTitle or theme specifics
 const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor'> = {
@@ -25,7 +22,6 @@ export function useAppData() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Ref to hold currentHash for the event listener to avoid stale closures
   const currentHashRef = useRef<string | null>(null);
   useEffect(() => {
     currentHashRef.current = currentHash;
@@ -130,7 +126,6 @@ export function useAppData() {
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
       if (!prevData || !currentHashRef.current) {
-          // This might happen if currentHash is not yet set, though unlikely with the new effect order
           console.warn("Attempted to update appData before it was fully initialized or hash was available.");
           return prevData; 
       }
@@ -138,7 +133,7 @@ export function useAppData() {
       saveData(currentHashRef.current, newData);
       return newData;
     });
-  }, [saveData]); // saveData is stable
+  }, [saveData]); 
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -160,15 +155,14 @@ export function useAppData() {
     const newHash = generateRandomHash();
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     
-    // Use current app's theme and custom color if available, otherwise system defaults
     const newPageData: AppData = { 
       ...defaultAppDataBase,
       pageTitle: `ZipGroup Page ${newHash}`, 
       theme: appData?.theme || currentSystemTheme, 
-      customPrimaryColor: appData?.customPrimaryColor // Carry over custom color if set
+      customPrimaryColor: appData?.customPrimaryColor 
     };
     saveData(newHash, newPageData);
-    window.location.hash = newHash; // This will trigger the hashchange listener to load the new page data
+    window.location.hash = newHash; 
   }, [saveData, appData?.theme, appData?.customPrimaryColor]);
 
 

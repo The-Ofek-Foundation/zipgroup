@@ -15,6 +15,9 @@ import { Input } from "@/components/ui/input";
 import { ClipboardCopy } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { generateRandomHash } from "@/lib/utils";
+
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // Must match the one in use-app-data.ts
 
 export default function Home() {
   const {
@@ -85,6 +88,36 @@ export default function Home() {
       });
     }
   };
+
+  const handleOpenNewPageInNewTab = () => {
+    if (!appData) return; // Should not happen if UI is enabled
+
+    const newHash = generateRandomHash();
+    const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+    const newPageData: AppData = {
+      linkGroups: [], // Default empty link groups
+      pageTitle: `ZipGroup Page ${newHash}`,
+      theme: appData.theme || currentSystemTheme,
+      customPrimaryColor: appData.customPrimaryColor,
+    };
+
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
+    } catch (error) {
+      console.error("Failed to save data for new tab:", error);
+      toast({
+        title: "Error Preparing New Page",
+        description: "Could not save settings for the new tab.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newUrl = `${window.location.origin}${window.location.pathname}#${newHash}`;
+    window.open(newUrl, '_blank');
+  };
+
 
   if (isLoading || !appData) {
     return (
@@ -197,7 +230,7 @@ export default function Home() {
               <span>Powered by </span>
               <Button
                 variant="link"
-                onClick={createNewPage}
+                onClick={handleOpenNewPageInNewTab}
                 className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
               >
                 ZipGroup.link
