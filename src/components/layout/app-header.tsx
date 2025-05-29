@@ -28,15 +28,14 @@ export function AppHeader({
           <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/dashboard" asChild>
-            <Button variant="outline" size="sm"> {/* gap-1.5 removed from Button, moved to inner span */}
-              {/* Wrap multiple children of Button in a single span */}
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard">
               <span className="flex items-center gap-1.5">
                 <ListChecks className="h-4 w-4"/>
                 Dashboard
               </span>
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
           <CustomColorPicker
             currentCustomColor={customPrimaryColor}
@@ -48,3 +47,4 @@ export function AppHeader({
     </header>
   );
 }
+
