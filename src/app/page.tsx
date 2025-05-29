@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from "react";
@@ -19,6 +20,7 @@ export default function Home() {
     setLinkGroups,
     setTheme,
     createNewPage,
+    currentHash, // Destructure currentHash here
   } = useAppData();
   
   const { toast } = useToast();
@@ -128,7 +130,7 @@ export default function Home() {
           initialData={editingGroup}
         />
          <footer className="py-6 text-center text-sm text-muted-foreground">
-          Powered by LinkWarp. Your current page hash: <code className="font-mono bg-muted p-1 rounded text-xs">{appData.currentHash || 'loading...'}</code>
+          Powered by LinkWarp. Your current page hash: <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
         </footer>
       </div>
     </ThemeProvider>
@@ -161,4 +163,3 @@ function CardSkeleton() {
     </div>
   );
 }
-
