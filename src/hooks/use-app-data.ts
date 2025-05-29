@@ -9,7 +9,7 @@ import { generateRandomHash } from "@/lib/utils";
 const LOCAL_STORAGE_PREFIX = "linkwarp_"; 
 
 // Base default data without volatile fields like pageTitle or theme specifics
-const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor'> = {
+const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor' | 'lastModified'> = {
   linkGroups: [],
 };
 
@@ -28,13 +28,13 @@ export function useAppData() {
   }, [currentHash]);
 
   const loadData = useCallback((hash: string): AppData | null => {
-    if (!hash) return null; // Do not attempt to load with an empty hash
+    if (!hash) return null; 
     try {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        // Migrate old titles
-        if (parsedData.pageTitle && parsedData.pageTitle.startsWith("LinkWarp Page")) {
+        // Migrate old titles & set default theme if missing
+        if (parsedData.pageTitle && (parsedData.pageTitle.startsWith("LinkWarp Page") || parsedData.pageTitle.startsWith("ZipGroup Page"))) {
             parsedData.pageTitle = `ZipGroup Page ${hash}`;
         }
         if (!parsedData.theme) {
@@ -49,20 +49,20 @@ export function useAppData() {
   }, []);
 
   const saveData = useCallback((hash: string, data: AppData) => {
-    if (!hash) return; // Do not attempt to save with an empty hash
+    if (!hash) return; 
     try {
-      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(data));
+      const dataToSave = { ...data, lastModified: Date.now() };
+      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(dataToSave));
     } catch (error)      {
       console.error("Failed to save data to local storage:", error);
     }
   }, []);
 
   useEffect(() => {
-    const hashWithOptionalQuery = window.location.hash.substring(1);
-    const [initialHashValueFromUrl] = hashWithOptionalQuery.split('?'); // Get only the part before '?'
+    const hashFromUrl = window.location.hash.substring(1).split('?')[0]; // Get only the part before '?'
 
     let dataToLoad: AppData;
-    let hashToUse = initialHashValueFromUrl;
+    let hashToUse = hashFromUrl;
 
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
@@ -71,28 +71,27 @@ export function useAppData() {
       if (loaded) {
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
-        // No data for this hash, create new default data
         dataToLoad = { 
           ...defaultAppDataBase, 
           pageTitle: `ZipGroup Page ${hashToUse}`, 
           theme: systemTheme, 
-          customPrimaryColor: undefined 
+          customPrimaryColor: undefined,
+          lastModified: Date.now(),
         };
-        saveData(hashToUse, dataToLoad);
+        saveData(hashToUse, dataToLoad); // Save immediately so lastModified is set
       }
     } else {
-      // No hash in URL, generate new page
       hashToUse = generateRandomHash();
       dataToLoad = { 
         ...defaultAppDataBase, 
         pageTitle: `ZipGroup Page ${hashToUse}`,
         theme: systemTheme, 
-        customPrimaryColor: undefined 
+        customPrimaryColor: undefined,
+        lastModified: Date.now(),
       };
       saveData(hashToUse, dataToLoad);
-      // Construct the new URL carefully to only update the hash part
-      const currentPath = window.location.pathname + window.location.search; // Keep existing path and query params
-      window.history.replaceState(null, '', `${currentPath}#${hashToUse}`);
+      const currentPathAndQuery = window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', `${currentPathAndQuery}#${hashToUse}`);
     }
     
     setAppData(dataToLoad);
@@ -100,8 +99,7 @@ export function useAppData() {
     setIsLoading(false);
 
     const handleHashChange = () => {
-      const newHashWithOptionalQuery = window.location.hash.substring(1);
-      const [newHashValue] = newHashWithOptionalQuery.split('?');
+      const newHashValue = window.location.hash.substring(1).split('?')[0];
 
       if (newHashValue && newHashValue !== currentHashRef.current) { 
         setIsLoading(true);
@@ -110,40 +108,33 @@ export function useAppData() {
         if (newData) {
           setAppData({ ...newData, theme: newData.theme || currentSystemTheme });
         } else {
-          // Navigated to a hash with no data, create new default data for this hash
           const freshData: AppData = { 
             ...defaultAppDataBase, 
             pageTitle: `ZipGroup Page ${newHashValue}`, 
             theme: currentSystemTheme, 
-            customPrimaryColor: undefined 
+            customPrimaryColor: undefined,
+            lastModified: Date.now(),
           };
           saveData(newHashValue, freshData);
           setAppData(freshData);
         }
         setCurrentHash(newHashValue);
         setIsLoading(false);
-      } else if (!newHashValue && currentHashRef.current) {
-        // Hash was removed, potentially re-generate or decide on a default behavior
-        // For now, let's assume this scenario means we might need to create a new page
-        // or redirect. This logic might need further refinement based on desired UX.
-        // console.log("Hash removed from URL.");
-        // Potentially call createNewPage() or redirect to a default state.
       }
     };
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
 
-  }, [loadData, saveData, pathname]); // Added pathname to deps for replaceState
+  }, [loadData, saveData, pathname]); 
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
       if (!prevData || !currentHashRef.current) {
-          // console.warn("Attempted to update appData before it was fully initialized or hash was available.");
           return prevData; 
       }
       const newData = { ...prevData, ...updates };
-      saveData(currentHashRef.current, newData);
+      saveData(currentHashRef.current, newData); // saveData will add/update lastModified
       return newData;
     });
   }, [saveData]); 
@@ -172,12 +163,12 @@ export function useAppData() {
       ...defaultAppDataBase,
       pageTitle: `ZipGroup Page ${newHash}`, 
       theme: appData?.theme || currentSystemTheme, 
-      customPrimaryColor: appData?.customPrimaryColor 
+      customPrimaryColor: appData?.customPrimaryColor,
+      // lastModified will be set by saveData
     };
-    saveData(newHash, newPageData);
-    // Construct the new URL carefully to only update the hash part
-    const currentPath = window.location.pathname + window.location.search;
-    window.location.href = `${currentPath}#${newHash}`; // Use href to trigger hashchange and reload
+    saveData(newHash, newPageData); 
+    const currentPathAndQuery = window.location.pathname + window.location.search;
+    window.location.href = `${currentPathAndQuery}#${newHash}`;
   }, [saveData, appData?.theme, appData?.customPrimaryColor, pathname]);
 
 
