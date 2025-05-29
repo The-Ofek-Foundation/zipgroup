@@ -12,12 +12,14 @@ interface AppHeaderProps {
   onCreateNewPage: () => void;
   customPrimaryColor: string | undefined;
   onSetCustomPrimaryColor: (color?: string) => void;
+  isReadOnlyPreview?: boolean;
 }
 
 export function AppHeader({
   onCreateNewPage,
   customPrimaryColor,
-  onSetCustomPrimaryColor
+  onSetCustomPrimaryColor,
+  isReadOnlyPreview = false,
 }: AppHeaderProps) {
 
   return (
@@ -36,15 +38,15 @@ export function AppHeader({
               </span>
             </Link>
           </Button>
-          <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
+          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview}>New Page</Button>
           <CustomColorPicker
             currentCustomColor={customPrimaryColor}
             onSetCustomColor={onSetCustomPrimaryColor}
+            disabled={isReadOnlyPreview}
           />
-          <ThemeSwitcher />
+          <ThemeSwitcher disabled={isReadOnlyPreview} />
         </div>
       </div>
     </header>
   );
 }
-

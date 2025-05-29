@@ -178,9 +178,11 @@ function PageContent() {
       toast({ title: "No URLs", description: "This group has no URLs to open.", variant: "default" });
       return;
     }
-    const specialUrl = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
+    
+    const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
+
     try {
-      await navigator.clipboard.writeText(specialUrl);
+      await navigator.clipboard.writeText(url);
       toast({
         title: "Link Copied for New Window!",
         description: (
@@ -194,7 +196,7 @@ function PageContent() {
             <p className="mt-2">The new window will then open all links from the group "{groupToOpen.name}".</p>
           </div>
         ),
-        duration: 15000,
+        duration: 15000, 
       });
     } catch (err) {
       console.error("Failed to copy special URL for new window: ", err);
@@ -207,10 +209,15 @@ function PageContent() {
   };
 
   useEffect(() => {
-    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    let groupIdToOpen: string | null = null;
+    if (typeof window !== 'undefined' && window.location.search) {
+      const params = new URLSearchParams(window.location.search);
+      groupIdToOpen = params.get('openGroupInNewWindow');
+    }
+    
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      const urlToClearParamsFrom = pathname + (currentHash ? `#${currentHash}` : '');
+      const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
         toast({
@@ -221,24 +228,28 @@ function PageContent() {
         const [firstUrl, ...otherUrls] = group.urls;
         otherUrls.forEach(url => {
           try {
-            new URL(url);
+            new URL(url); // Validate URL
             const newTab = window.open(url, '_blank');
-            if (!newTab) {
-              toast({ title: "Popup Might Be Active", description: `Could not open: ${url}. Check popup blocker.`, variant: "destructive", duration: 6000 });
+             if (!newTab) {
+                console.warn(`Popup blocker might have prevented opening: ${url}`);
+                toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000});
             }
           } catch (e) {
-            toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
+             console.warn(`Invalid URL skipped: ${url}`, e);
+             toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
           }
         });
-        router.replace(urlToClearParamsFrom, { scroll: false });
+        
+        router.replace(urlToClearParamsFrom, { scroll: false }); 
         setTimeout(() => {
           try {
-            new URL(firstUrl);
+            new URL(firstUrl); // Validate URL
             window.location.replace(firstUrl);
           } catch (e) {
-            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
+            console.error(`Error navigating to first URL "${firstUrl}":`, e);
+            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
           }
-        }, 250);
+        }, 250); 
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
         router.replace(urlToClearParamsFrom, { scroll: false });
@@ -247,7 +258,9 @@ function PageContent() {
         router.replace(urlToClearParamsFrom, { scroll: false });
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -269,6 +282,10 @@ function PageContent() {
       }
     }
   };
+  
+  const isPristineOrSharedPage = !currentHash && appData;
+  const isReadOnlyPreview = isPristineOrSharedPage;
+
 
   if (isLoading || !appData || !sharedDataProcessed) {
     return (
@@ -351,7 +368,6 @@ function PageContent() {
     setIsSavingNewPage(false);
   };
 
-  const isPristineOrSharedPage = !currentHash && appData;
 
   return (
     <ThemeProvider
@@ -364,6 +380,7 @@ function PageContent() {
             onCreateNewPage={createNewBlankPage} 
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
+            isReadOnlyPreview={isReadOnlyPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-8 text-center">
@@ -376,6 +393,7 @@ function PageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
+                disabled={isReadOnlyPreview}
               />
             </div>
 
@@ -387,8 +405,8 @@ function PageContent() {
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
-                    ? "This is a preview of a shared ZipGroup page. You can customize it above and see the link groups below. When you're ready, save it to your dashboard."
-                    : "Customize your new page's title and theme above. Once you're ready, save it to start adding link groups below."}
+                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own and enable editing."
+                    : "Customize your new page's title and theme using the controls above. Once you're ready, save it to start adding link groups below."}
                 </p>
                 <Button onClick={handleSavePristineOrSharedPage} size="lg" disabled={isSavingNewPage}>
                   {isSavingNewPage ? (
@@ -403,10 +421,15 @@ function PageContent() {
                     After saving, you'll be able to add and organize your link groups below.
                   </p>
                 )}
+                 {initialSharedData && (
+                   <p className="text-sm text-muted-foreground mt-4">
+                    Saving will create a new copy in your dashboard, allowing you to edit and manage it.
+                  </p>
+                )}
               </div>
             )}
             
-            {appData && (
+            {appData && !isReadOnlyPreview && (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -423,10 +446,22 @@ function PageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
+                    isReadOnlyPreview={isReadOnlyPreview}
                   />
                 </SortableContext>
               </DndContext>
             )}
+             {appData && isReadOnlyPreview && (
+                <LinkGroupList
+                    groups={appData.linkGroups}
+                    onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
+                    onEditGroup={handleEditGroup} // Will be disabled by LinkGroupCard
+                    onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupCard
+                    onOpenGroup={handleOpenGroup}
+                    onOpenInNewWindow={handleOpenGroupInNewWindow}
+                    isReadOnlyPreview={isReadOnlyPreview}
+                  />
+             )}
           </main>
           <LinkGroupFormDialog
             isOpen={isFormOpen}
@@ -532,6 +567,3 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
-
-
-    

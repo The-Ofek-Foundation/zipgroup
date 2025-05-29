@@ -13,9 +13,17 @@ interface SortableLinkGroupItemProps {
   onEdit: (group: LinkGroup) => void;
   onDelete: (group: LinkGroup) => void;
   onOpenInNewWindow: (group: LinkGroup) => void;
+  isReadOnlyPreview?: boolean;
 }
 
-export function SortableLinkGroupItem({ group, onOpen, onEdit, onDelete, onOpenInNewWindow }: SortableLinkGroupItemProps) {
+export function SortableLinkGroupItem({ 
+  group, 
+  onOpen, 
+  onEdit, 
+  onDelete, 
+  onOpenInNewWindow,
+  isReadOnlyPreview = false 
+}: SortableLinkGroupItemProps) {
   const {
     attributes,
     listeners,
@@ -23,22 +31,25 @@ export function SortableLinkGroupItem({ group, onOpen, onEdit, onDelete, onOpenI
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: group.id });
+  } = useSortable({ 
+    id: group.id,
+    disabled: isReadOnlyPreview, 
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 250ms ease', // Ensure transition is applied
+    transition: transition || 'transform 250ms ease',
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(isReadOnlyPreview ? {} : attributes)} // Conditionally apply drag attributes
+      {...(isReadOnlyPreview ? {} : listeners)}  // Conditionally apply drag listeners
       className={cn(
-        "touch-manipulation", // For better mobile drag experience
-        isDragging ? "cursor-grabbing z-50" : "cursor-grab z-0" // Ensure dragged item is on top and set cursor
+        "touch-manipulation",
+        isDragging && !isReadOnlyPreview ? "cursor-grabbing z-50" : (!isReadOnlyPreview ? "cursor-grab z-0" : ""),
       )}
     >
       <LinkGroupCard
@@ -47,9 +58,9 @@ export function SortableLinkGroupItem({ group, onOpen, onEdit, onDelete, onOpenI
         onEdit={onEdit}
         onDelete={onDelete}
         onOpenInNewWindow={onOpenInNewWindow}
-        isDragging={isDragging}
+        isDragging={isDragging && !isReadOnlyPreview}
+        isReadOnlyPreview={isReadOnlyPreview}
       />
     </div>
   );
 }
-

@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"; // Changed from AlertDialog
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -27,9 +27,18 @@ interface LinkGroupCardProps {
   onDelete: (group: LinkGroup) => void;
   onOpenInNewWindow: (group: LinkGroup) => void;
   isDragging?: boolean;
+  isReadOnlyPreview?: boolean;
 }
 
-export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow, isDragging }: LinkGroupCardProps) {
+export function LinkGroupCard({ 
+  group, 
+  onOpen, 
+  onEdit, 
+  onDelete, 
+  onOpenInNewWindow, 
+  isDragging,
+  isReadOnlyPreview = false
+}: LinkGroupCardProps) {
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -75,7 +84,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
   };
 
   const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent) => {
-    e.stopPropagation();
+    // Only stop propagation if not in read-only preview mode, as dragging isn't active then
+    if (!isReadOnlyPreview) {
+      e.stopPropagation();
+    }
   };
 
   return (
@@ -145,7 +157,14 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
         <div className="flex flex-row items-center gap-x-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={() => onEdit(group)} onPointerDown={stopPropagationForRegularButtons} aria-label="Edit group">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => !isReadOnlyPreview && onEdit(group)} 
+                onPointerDown={stopPropagationForRegularButtons} 
+                aria-label="Edit group"
+                disabled={isReadOnlyPreview}
+              >
                 <Edit3 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -154,11 +173,18 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </TooltipContent>
           </Tooltip>
 
-          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <Dialog open={isDeleteDialogOpen && !isReadOnlyPreview} onOpenChange={(open) => !isReadOnlyPreview && setIsDeleteDialogOpen(open)}>
             <Tooltip>
               <TooltipTrigger asChild>
-                {/* Removed onPointerDown for DialogTrigger as per previous fix attempt, rely on drag delay sensor */}
-                <Button variant="destructive" size="icon" onClick={() => setIsDeleteDialogOpen(true)} aria-label="Delete group">
+                <Button 
+                  variant="destructive" 
+                  size="icon" 
+                  onClick={() => !isReadOnlyPreview && setIsDeleteDialogOpen(true)} 
+                  aria-label="Delete group"
+                  disabled={isReadOnlyPreview}
+                  // No onPointerDown needed here as DialogTrigger handles events itself, 
+                  // and dnd-kit sensor delay handles drag vs click.
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>

@@ -14,6 +14,7 @@ import { hexToHslValues } from "@/lib/color-utils";
 interface CustomColorPickerProps {
   currentCustomColor: string | undefined;
   onSetCustomColor: (color?: string) => void;
+  disabled?: boolean;
 }
 
 const applyStylesToDocument = (hexColor: string | null | undefined) => {
@@ -34,7 +35,7 @@ const applyStylesToDocument = (hexColor: string | null | undefined) => {
   root.style.removeProperty('--ring');
 };
 
-export function CustomColorPicker({ currentCustomColor, onSetCustomColor }: CustomColorPickerProps) {
+export function CustomColorPicker({ currentCustomColor, onSetCustomColor, disabled = false }: CustomColorPickerProps) {
   const [pickerColor, setPickerColor] = useState<string>(currentCustomColor || "#72BCD4");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
@@ -45,43 +46,44 @@ export function CustomColorPicker({ currentCustomColor, onSetCustomColor }: Cust
   }, [currentCustomColor, isPopoverOpen]);
 
   useEffect(() => {
-    if (isPopoverOpen) {
+    if (isPopoverOpen && !disabled) {
       applyStylesToDocument(pickerColor);
     }
-  }, [pickerColor, isPopoverOpen]);
+  }, [pickerColor, isPopoverOpen, disabled]);
 
   const handleApply = () => {
+    if (disabled) return;
     onSetCustomColor(pickerColor);
     setIsPopoverOpen(false);
-    // ThemeProvider will officially apply based on appData update
   };
 
   const handleReset = () => {
+    if (disabled) return;
     onSetCustomColor(undefined); 
     setPickerColor("#72BCD4"); 
     setIsPopoverOpen(false);
-    applyStylesToDocument(null); // Immediately revert visual preview
+    applyStylesToDocument(null);
   };
 
   const onPopoverOpenChange = (open: boolean) => {
+    if (disabled && open) return; // Prevent opening if disabled
     setIsPopoverOpen(open);
     if (open) {
       const initialColor = currentCustomColor || "#72BCD4";
       setPickerColor(initialColor);
       applyStylesToDocument(initialColor); 
     } else {
-      // Revert live preview to the official currentCustomColor from appData
       applyStylesToDocument(currentCustomColor);
     }
   };
 
   return (
-    <Popover open={isPopoverOpen} onOpenChange={onPopoverOpenChange}>
+    <Popover open={isPopoverOpen && !disabled} onOpenChange={onPopoverOpenChange}>
       <TooltipProvider delayDuration={100}>
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Customize theme color">
+              <Button variant="ghost" size="icon" aria-label="Customize theme color" disabled={disabled}>
                 <Palette className="h-5 w-5" />
               </Button>
             </PopoverTrigger>
@@ -103,6 +105,7 @@ export function CustomColorPicker({ currentCustomColor, onSetCustomColor }: Cust
               value={pickerColor}
               onChange={(e) => setPickerColor(e.target.value)}
               className="h-8 w-14 p-0.5 border-input"
+              disabled={disabled}
             />
             <Input
               id="custom-primary-color-text"
@@ -111,6 +114,7 @@ export function CustomColorPicker({ currentCustomColor, onSetCustomColor }: Cust
               onChange={(e) => setPickerColor(e.target.value)}
               className="h-8 flex-1 text-xs"
               placeholder="#RRGGBB"
+              disabled={disabled}
             />
           </div>
            <p className="text-xs text-muted-foreground">
@@ -118,11 +122,11 @@ export function CustomColorPicker({ currentCustomColor, onSetCustomColor }: Cust
           </p>
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <Button variant="ghost" size="sm" onClick={handleReset} className="gap-1.5">
+          <Button variant="ghost" size="sm" onClick={handleReset} className="gap-1.5" disabled={disabled}>
             <RotateCcw className="h-3.5 w-3.5" />
             Reset
           </Button>
-          <Button size="sm" onClick={handleApply}>
+          <Button size="sm" onClick={handleApply} disabled={disabled}>
             Apply
           </Button>
         </div>
