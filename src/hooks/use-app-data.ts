@@ -3,16 +3,14 @@
 
 import type { AppData, LinkGroup } from "@/lib/types";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { generateRandomHash } from "@/lib/utils";
 
-const LOCAL_STORAGE_PREFIX = "linkwarp_"; 
+const LOCAL_STORAGE_PREFIX = "linkwarp_";
 
-// Base default data without volatile fields like pageTitle or theme specifics
 const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor' | 'lastModified'> = {
   linkGroups: [],
 };
-
 
 export function useAppData() {
   const [appData, setAppData] = useState<AppData | null>(null);
@@ -33,8 +31,7 @@ export function useAppData() {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        // Migrate old titles & set default theme if missing
-        if (parsedData.pageTitle && (parsedData.pageTitle.startsWith("LinkWarp Page") || parsedData.pageTitle.startsWith("ZipGroup Page"))) {
+        if (parsedData.pageTitle && (parsedData.pageTitle.startsWith("LinkWarp Page"))) {
             parsedData.pageTitle = `ZipGroup Page ${hash}`;
         }
         if (!parsedData.theme) {
@@ -51,34 +48,44 @@ export function useAppData() {
   const saveData = useCallback((hash: string, data: AppData) => {
     if (!hash) return; 
     try {
-      const dataToSave = { ...data, lastModified: Date.now() };
-      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(dataToSave));
-    } catch (error)      {
-      console.error("Failed to save data to local storage:", error);
+      // Ensure lastModified is always set/updated before saving or deciding to remove
+      const dataWithTimestamp = { ...data, lastModified: Date.now() };
+
+      if (dataWithTimestamp.linkGroups && dataWithTimestamp.linkGroups.length === 0) {
+        localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
+      } else {
+        localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(dataWithTimestamp));
+      }
+    } catch (error) {
+      console.error("Failed to save or remove data from local storage:", error);
     }
   }, []);
 
+
   useEffect(() => {
-    const hashFromUrl = window.location.hash.substring(1).split('?')[0]; // Get only the part before '?'
+    const initialHashValueFromUrl = window.location.hash.substring(1).split('?')[0];
 
     let dataToLoad: AppData;
-    let hashToUse = hashFromUrl;
+    let hashToUse = initialHashValueFromUrl;
 
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     if (hashToUse) {
       const loaded = loadData(hashToUse);
       if (loaded) {
+         // If loaded data has 0 link groups, it might have been an "empty save" before the new logic.
+         // The dashboard will clean it up. For current page, we load it.
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
+        // Hash in URL, but no data found (could be new, or was deleted due to 0 groups)
         dataToLoad = { 
           ...defaultAppDataBase, 
           pageTitle: `ZipGroup Page ${hashToUse}`, 
           theme: systemTheme, 
           customPrimaryColor: undefined,
-          lastModified: Date.now(),
+          // lastModified will be set by saveData if it's not an empty group page
         };
-        saveData(hashToUse, dataToLoad); // Save immediately so lastModified is set
+        saveData(hashToUse, dataToLoad); // saveData will handle not saving if linkGroups is empty
       }
     } else {
       hashToUse = generateRandomHash();
@@ -87,7 +94,7 @@ export function useAppData() {
         pageTitle: `ZipGroup Page ${hashToUse}`,
         theme: systemTheme, 
         customPrimaryColor: undefined,
-        lastModified: Date.now(),
+        // lastModified will be set by saveData
       };
       saveData(hashToUse, dataToLoad);
       const currentPathAndQuery = window.location.pathname + window.location.search;
@@ -113,9 +120,9 @@ export function useAppData() {
             pageTitle: `ZipGroup Page ${newHashValue}`, 
             theme: currentSystemTheme, 
             customPrimaryColor: undefined,
-            lastModified: Date.now(),
+            // lastModified will be set by saveData
           };
-          saveData(newHashValue, freshData);
+          saveData(newHashValue, freshData); // saveData handles empty case
           setAppData(freshData);
         }
         setCurrentHash(newHashValue);
@@ -133,11 +140,14 @@ export function useAppData() {
       if (!prevData || !currentHashRef.current) {
           return prevData; 
       }
-      const newData = { ...prevData, ...updates };
-      saveData(currentHashRef.current, newData); // saveData will add/update lastModified
+      // Ensure lastModified is updated with every change.
+      // saveData will handle the actual persistence logic (including deleting if empty)
+      const newData = { ...prevData, ...updates, lastModified: Date.now() };
+      saveData(currentHashRef.current, newData);
       return newData;
     });
-  }, [saveData]); 
+  }, [saveData]);
+
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -166,7 +176,11 @@ export function useAppData() {
       customPrimaryColor: appData?.customPrimaryColor,
       // lastModified will be set by saveData
     };
-    saveData(newHash, newPageData); 
+    saveData(newHash, newPageData); // saveData will handle empty case, but new pages start empty.
+                                  // So, it won't be saved until a link group is added.
+                                  // This means the user will be redirected to #newHash,
+                                  // which will then effectively "create" it in memory.
+                                  // If they add a group, it saves. If not, it vanishes from storage.
     const currentPathAndQuery = window.location.pathname + window.location.search;
     window.location.href = `${currentPathAndQuery}#${newHash}`;
   }, [saveData, appData?.theme, appData?.customPrimaryColor, pathname]);
@@ -183,3 +197,4 @@ export function useAppData() {
     setCustomPrimaryColor,
   };
 }
+

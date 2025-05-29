@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, GripVertical } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,8 +22,27 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { AppData } from "@/lib/types";
 import { format } from 'date-fns';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { cn } from "@/lib/utils";
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
+const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
 
 interface StoredPage {
   hash: string;
@@ -34,6 +53,122 @@ interface StoredPage {
   lastModified?: number;
 }
 
+interface SortablePageCardItemProps {
+  page: StoredPage;
+  onDelete: (hash: string) => void;
+}
+
+function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: page.hash });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || 'transform 250ms ease',
+  };
+
+  const stopPropagation = (e: React.MouseEvent | React.PointerEvent) => {
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "touch-manipulation relative", // Added relative for absolute positioning of drag handle
+        isDragging ? "cursor-grabbing z-50 opacity-75 shadow-2xl ring-2 ring-primary" : "cursor-grab z-auto"
+      )}
+    >
+      <Button
+        variant="ghost"
+        size="icon"
+        {...attributes}
+        {...listeners}
+        className="absolute top-2 right-2 z-10 opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity hidden md:inline-flex" // Drag handle
+        aria-label="Drag to reorder page"
+        onPointerDown={stopPropagation}
+      >
+        <GripVertical className="h-5 w-5" />
+      </Button>
+      <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
+        <CardHeader className="pb-4">
+          <Link href={`/#${page.hash}`} className="block group">
+            <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
+              {page.title}
+            </CardTitle>
+          </Link>
+          <CardDescription className="text-xs pt-1">
+            Hash: <code className="bg-muted px-1 py-0.5 rounded">{page.hash}</code>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm flex-grow">
+          <div className="flex items-center text-muted-foreground">
+            <Layers className="mr-2 h-4 w-4" />
+            <span>{page.linkGroupCount} Link Group{page.linkGroupCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center text-muted-foreground">
+            <SunMoon className="mr-2 h-4 w-4" />
+            <span>Theme: {page.theme.charAt(0).toUpperCase() + page.theme.slice(1)}</span>
+          </div>
+          {page.customPrimaryColor && (
+            <div className="flex items-center text-muted-foreground">
+              <Palette className="mr-2 h-4 w-4" />
+              <span>Custom Color: </span>
+              <span
+                className="ml-1.5 h-4 w-4 rounded-full border"
+                style={{ backgroundColor: page.customPrimaryColor }}
+                title={page.customPrimaryColor}
+              />
+            </div>
+          )}
+          {page.lastModified && (
+            <div className="flex items-center text-muted-foreground">
+              <Clock className="mr-2 h-4 w-4" />
+              <span>
+                Modified: {format(new Date(page.lastModified), "MMM d, yyyy, h:mm a")}
+              </span>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="pt-4 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="w-full" aria-label={`Delete page ${page.title}`} onPointerDown={stopPropagation}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(page.hash)}
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Delete Page
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+
+
 export default function DashboardPage() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,14 +177,33 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadedPages: StoredPage[] = [];
+    let storedOrder: string[] = [];
+
     if (typeof window !== 'undefined') {
+      try {
+        const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
+        if (orderJson) {
+          storedOrder = JSON.parse(orderJson);
+        }
+      } catch (error) {
+        console.error("Failed to parse page order from local storage:", error);
+        storedOrder = [];
+      }
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith(LOCAL_STORAGE_PREFIX)) {
+        if (key && key.startsWith(LOCAL_STORAGE_PREFIX) && key !== DASHBOARD_ORDER_KEY) {
           try {
             const storedData = localStorage.getItem(key);
             if (storedData) {
               const parsedData = JSON.parse(storedData) as AppData;
+              if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
+                localStorage.removeItem(key); // Delete if no link groups
+                // Ensure this hash is also removed from storedOrder if it exists
+                storedOrder = storedOrder.filter(h => h !== key.substring(LOCAL_STORAGE_PREFIX.length));
+                continue; // Skip adding this page
+              }
+
               const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
               loadedPages.push({
                 hash: hash,
@@ -65,20 +219,55 @@ export default function DashboardPage() {
           }
         }
       }
-      // Sort pages by title by default
-      setPages(loadedPages.sort((a, b) => a.title.localeCompare(b.title)));
+
+      // Sort pages: first by storedOrder, then by lastModified (newest first), then by title
+      const pageMap = new Map(loadedPages.map(p => [p.hash, p]));
+      const orderedPagesFromStorage: StoredPage[] = [];
+      const remainingHashes = new Set(loadedPages.map(p => p.hash));
+
+      for (const hash of storedOrder) {
+        const page = pageMap.get(hash);
+        if (page) {
+          orderedPagesFromStorage.push(page);
+          remainingHashes.delete(hash);
+        }
+      }
+      
+      // Update storedOrder to only contain valid, existing hashes
+      const validStoredOrder = orderedPagesFromStorage.map(p => p.hash);
+      if (validStoredOrder.length !== storedOrder.length) {
+         localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
+      }
+
+
+      const remainingPages = Array.from(remainingHashes).map(hash => pageMap.get(hash)!);
+      remainingPages.sort((a, b) => {
+        if (a.lastModified && b.lastModified) {
+          return b.lastModified - a.lastModified;
+        }
+        if (a.lastModified) return -1;
+        if (b.lastModified) return 1;
+        return a.title.localeCompare(b.title);
+      });
+
+      setPages([...orderedPagesFromStorage, ...remainingPages]);
     }
     setIsLoading(false);
   }, []);
 
   const handleCreateNewPage = () => {
-    router.push("/"); 
+    router.push("/");
   };
 
   const handleDeletePage = (hashToDelete: string) => {
     try {
       localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hashToDelete}`);
-      setPages(prevPages => prevPages.filter(p => p.hash !== hashToDelete));
+      setPages(prevPages => {
+        const newPages = prevPages.filter(p => p.hash !== hashToDelete);
+        const newOrder = newPages.map(p => p.hash);
+        localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrder));
+        return newPages;
+      });
       toast({
         title: "Page Deleted",
         description: `The page "${pages.find(p => p.hash === hashToDelete)?.title || hashToDelete}" has been removed.`,
@@ -92,6 +281,30 @@ export default function DashboardPage() {
       });
     }
   };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEndPages = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setPages((currentPages) => {
+        const oldIndex = currentPages.findIndex((p) => p.hash === active.id);
+        const newIndex = currentPages.findIndex((p) => p.hash === over.id);
+        if (oldIndex === -1 || newIndex === -1) return currentPages;
+
+        const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
+        const newOrderOfHashes = reorderedPages.map(p => p.hash);
+        localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrderOfHashes));
+        return reorderedPages;
+      });
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -124,7 +337,7 @@ export default function DashboardPage() {
             <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
             <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
             <p className="mt-2 text-lg text-muted-foreground">
-              Looks like your dashboard is empty. Let's create your first page!
+              Looks like your dashboard is empty. Let's create your first page or add some link groups!
             </p>
             <Button onClick={handleCreateNewPage} className="mt-8" size="lg">
               <PlusCircle className="mr-2 h-5 w-5" />
@@ -132,82 +345,21 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {pages.map(page => (
-              <Card key={page.hash} className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col">
-                <CardHeader className="pb-4">
-                  <Link href={`/#${page.hash}`} className="block group">
-                    <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
-                      {page.title}
-                    </CardTitle>
-                  </Link>
-                  <CardDescription className="text-xs pt-1">
-                    Hash: <code className="bg-muted px-1 py-0.5 rounded">{page.hash}</code>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm flex-grow">
-                  <div className="flex items-center text-muted-foreground">
-                    <Layers className="mr-2 h-4 w-4" />
-                    <span>{page.linkGroupCount} Link Group{page.linkGroupCount !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="flex items-center text-muted-foreground">
-                    <SunMoon className="mr-2 h-4 w-4" />
-                    <span>Theme: {page.theme.charAt(0).toUpperCase() + page.theme.slice(1)}</span>
-                  </div>
-                  {page.customPrimaryColor && (
-                    <div className="flex items-center text-muted-foreground">
-                      <Palette className="mr-2 h-4 w-4" />
-                      <span>Custom Color: </span>
-                      <span 
-                        className="ml-1.5 h-4 w-4 rounded-full border" 
-                        style={{ backgroundColor: page.customPrimaryColor }}
-                        title={page.customPrimaryColor}
-                      />
-                    </div>
-                  )}
-                  {page.lastModified && (
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="mr-2 h-4 w-4" />
-                      <span>
-                        Modified: {format(new Date(page.lastModified), "MMM d, yyyy, h:mm a")}
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="pt-4 border-t">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" className="w-full" aria-label={`Delete page ${page.title}`}>
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeletePage(page.hash)}
-                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        >
-                          Delete Page
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
+            <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {pages.map(page => (
+                  <SortablePageCardItem key={page.hash} page={page} onDelete={handleDeletePage} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
       <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        Found {pages.length} page(s). Manage your ZipGroup configurations with ease.
+        Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
       </footer>
     </div>
   );
 }
+
