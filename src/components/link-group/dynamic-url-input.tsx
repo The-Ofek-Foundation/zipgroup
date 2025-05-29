@@ -2,6 +2,7 @@
 "use client";
 
 import type React from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -25,21 +26,24 @@ import { PlusCircle, XCircle, GripVertical } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+interface UrlItem {
+  id: string;
+  value: string;
+}
+
 interface DynamicUrlInputProps {
   urls: string[];
   onChange: (urls: string[]) => void;
 }
 
 interface SortableUrlItemProps {
-  id: string;
-  url: string;
-  index: number;
+  item: UrlItem; // Changed from 'url' and 'index' to 'item'
   urlsCount: number;
-  handleUrlChange: (index: number, value: string) => void;
-  removeUrlField: (index: number) => void;
+  handleUrlChange: (id: string, value: string) => void;
+  removeUrlField: (id: string) => void;
 }
 
-function SortableUrlItem({ id, url, index, urlsCount, handleUrlChange, removeUrlField }: SortableUrlItemProps) {
+function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: SortableUrlItemProps) {
   const {
     attributes,
     listeners,
@@ -47,7 +51,7 @@ function SortableUrlItem({ id, url, index, urlsCount, handleUrlChange, removeUrl
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id: item.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -82,8 +86,8 @@ function SortableUrlItem({ id, url, index, urlsCount, handleUrlChange, removeUrl
       <Input
         type="url"
         placeholder="https://example.com"
-        value={url}
-        onChange={(e) => handleUrlChange(index, e.target.value)}
+        value={item.value}
+        onChange={(e) => handleUrlChange(item.id, e.target.value)}
         className="flex-grow"
       />
       <Tooltip>
@@ -92,9 +96,9 @@ function SortableUrlItem({ id, url, index, urlsCount, handleUrlChange, removeUrl
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => removeUrlField(index)}
+            onClick={() => removeUrlField(item.id)}
             aria-label="Remove URL"
-            disabled={urlsCount <= 1 && index === 0}
+            disabled={urlsCount <= 1 && item.value === internalUrlItems[0]?.value} // Check if it's the only item
           >
             <XCircle className="h-5 w-5 text-destructive" />
           </Button>
@@ -107,13 +111,24 @@ function SortableUrlItem({ id, url, index, urlsCount, handleUrlChange, removeUrl
   );
 }
 
-export function DynamicUrlInput({ urls, onChange }: DynamicUrlInputProps) {
-  // Ensure each URL has a unique, stable ID for dnd-kit
-  // We'll use their index in the original array as part of the ID if URLs can be duplicated.
-  // For simplicity, if URLs are generally unique, they can be their own IDs.
-  // If not, we'll need a more robust ID generation strategy (e.g., mapping to objects with IDs).
-  // For now, let's assume indices can work if we map URLs to IDs:
-  const items = urls.map((_, index) => `url-${index}`);
+
+// Helper: Keep track of internal items to ensure stable IDs for dnd-kit
+let internalUrlItems: UrlItem[] = [];
+
+export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputProps) {
+  const [items, setItems] = useState<UrlItem[]>(() =>
+    propUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue }))
+  );
+
+  // Effect to sync with propUrls if it changes from parent (e.g., form reset)
+  useEffect(() => {
+    // This simple check might not be perfect for all parent update scenarios,
+    // but handles cases where the array reference or length changes.
+    // It re-generates IDs, which is acceptable if the whole list context changes.
+    if (propUrls.length !== items.length || propUrls.some((url, i) => url !== items[i]?.value)) {
+      setItems(propUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
+    }
+  }, [propUrls]);
 
 
   const sensors = useSensors(
@@ -123,33 +138,60 @@ export function DynamicUrlInput({ urls, onChange }: DynamicUrlInputProps) {
     })
   );
 
-  const handleUrlChange = (index: number, value: string) => {
-    const newUrls = [...urls];
-    newUrls[index] = value;
-    onChange(newUrls);
+  const handleUrlChange = (id: string, value: string) => {
+    const newItems = items.map(item =>
+      item.id === id ? { ...item, value } : item
+    );
+    setItems(newItems);
+    onChange(newItems.map(item => item.value));
   };
 
   const addUrlField = () => {
-    onChange([...urls, ""]);
+    const newItem = { id: crypto.randomUUID(), value: "" };
+    const newItems = [...items, newItem];
+    setItems(newItems);
+    onChange(newItems.map(item => item.value));
   };
 
-  const removeUrlField = (index: number) => {
-    const newUrls = urls.filter((_, i) => i !== index);
-    onChange(newUrls);
+  const removeUrlField = (id: string) => {
+    const newItems = items.filter(item => item.id !== id);
+    // Ensure at least one URL field remains if it's currently empty
+    if (newItems.length === 0 && items.length === 1 && items[0].value === "") {
+        // Do not remove the last empty field
+        return;
+    }
+    if (newItems.length === 0) { // if all fields removed, add one back
+        const newFallbackItem = {id: crypto.randomUUID(), value: ""};
+        setItems([newFallbackItem]);
+        onChange([newFallbackItem.value]);
+    } else {
+        setItems(newItems);
+        onChange(newItems.map(item => item.value));
+    }
   };
+
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = items.indexOf(active.id as string);
-      const newIndex = items.indexOf(over.id as string);
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onChange(arrayMove(urls, oldIndex, newIndex));
-      }
+      setItems(currentItems => {
+        const oldIndex = currentItems.findIndex(item => item.id === active.id);
+        const newIndex = currentItems.findIndex(item => item.id === over.id);
+        
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
+          onChange(reorderedItems.map(item => item.value));
+          return reorderedItems;
+        }
+        return currentItems; // Should not happen if IDs are correct
+      });
     }
   }
+  
+  // Update internalUrlItems for SortableUrlItem's disabled logic
+  internalUrlItems = items;
+
 
   return (
     <DndContext
@@ -157,15 +199,13 @@ export function DynamicUrlInput({ urls, onChange }: DynamicUrlInputProps) {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+      <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-1">
-          {urls.map((url, index) => (
+          {items.map((item) => (
             <SortableUrlItem
-              key={items[index]} // Use the generated stable ID
-              id={items[index]}   // Use the generated stable ID
-              url={url}
-              index={index}
-              urlsCount={urls.length}
+              key={item.id}
+              item={item}
+              urlsCount={items.length}
               handleUrlChange={handleUrlChange}
               removeUrlField={removeUrlField}
             />
