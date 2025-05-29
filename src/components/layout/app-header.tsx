@@ -5,7 +5,7 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, ListChecks, Share2 } from "lucide-react";
+import { Zap, Home, Share2 } from "lucide-react"; // Changed ListChecks to Home
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -40,12 +40,13 @@ export function AppHeader({
           <Button asChild variant="outline" size="sm">
              <Link href="/">
               <span className="flex items-center gap-1.5">
-                <ListChecks />
+                <Home className="h-4 w-4"/> {/* Changed from ListChecks */}
                 Dashboard
               </span>
             </Link>
           </Button>
-          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && !canShareCurrentPage /* Allow new page from sample, disable on shared preview */}>New Page</Button>
+          {/* New Page button is disabled on shared previews, but enabled on /sample to allow saving the sample */}
+          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && !canShareCurrentPage && pathname !== '/sample'}>New Page</Button>
           
           {onInitiateShare && (
             <Tooltip>
