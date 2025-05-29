@@ -40,10 +40,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
       });
       return;
     }
-    onOpen(group); 
+    onOpen(group);
     group.urls.forEach(url => {
       try {
-        new URL(url); 
+        new URL(url);
         window.open(url, "_blank");
       } catch (e) {
         console.warn(`Invalid URL skipped: ${url}`);
@@ -98,18 +98,18 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
           {group.urls.length > 3 && <li className="italic">...and {group.urls.length - 3} more</li>}
         </ul>
       </CardContent>
-      <CardFooter className="flex flex-col items-stretch gap-2 pt-4 border-t sm:flex-row sm:items-center sm:justify-between sm:gap-x-2">
+      <CardFooter className="flex flex-col items-stretch gap-2 pt-4 border-t sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-2">
         {/* Left Button Group: Open All & New Window */}
-        <div className="flex flex-col w-full gap-2 sm:flex-row sm:items-center sm:gap-x-2 sm:flex-shrink sm:min-w-0"> {/* Added sm:flex-shrink sm:min-w-0 here */}
+        <div className="flex flex-col w-full gap-2 sm:flex-row sm:items-center sm:gap-x-2 sm:flex-shrink sm:min-w-0">
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button 
-                        onClick={handleOpenLinks} 
-                        className="justify-center group w-full sm:w-auto" 
+                    <Button
+                        onClick={handleOpenLinks}
+                        className="justify-center group w-full sm:w-auto sm:overflow-hidden"
                         variant="default"
                     >
-                        <ExternalLink className="h-4 w-4 group-hover:animate-pulse" />
-                        <span className="hidden md:inline ml-2">Open All</span>
+                        <ExternalLink className="h-4 w-4 group-hover:animate-pulse shrink-0" />
+                        <span className="hidden md:inline ml-2 truncate">Open All</span>
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -118,13 +118,13 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </Tooltip>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button 
-                        onClick={handleOpenInNewWindowClick} 
-                        className="justify-center group w-full sm:w-auto" 
+                    <Button
+                        onClick={handleOpenInNewWindowClick}
+                        className="justify-center group w-full sm:w-auto sm:overflow-hidden"
                         variant="outline"
                     >
-                        <AppWindow className="h-4 w-4" />
-                        <span className="hidden md:inline ml-2">New Window</span>
+                        <AppWindow className="h-4 w-4 shrink-0" />
+                        <span className="hidden md:inline ml-2 truncate">New Window</span>
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -133,7 +133,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </Tooltip>
         </div>
         {/* Right Button Group: Edit & Delete */}
-        <div className="flex items-center self-end gap-x-2 sm:self-auto sm:flex-shrink-0"> {/* Kept sm:flex-shrink-0 here */}
+        <div className="flex items-center self-end gap-x-2 sm:self-auto sm:flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">
@@ -144,7 +144,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
               <p>Edit group</p>
             </TooltipContent>
           </Tooltip>
-          
+
           <AlertDialog>
             <Tooltip>
               <TooltipTrigger asChild>
