@@ -10,6 +10,8 @@ import type { LinkGroup, AppData } from "@/lib/types";
 import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton"; // For loading state
+import { Button } from "@/components/ui/button"; // For copy button
+import { ClipboardCopy } from "lucide-react"; // For copy icon
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -20,7 +22,7 @@ export default function Home() {
     setLinkGroups,
     setTheme,
     createNewPage,
-    currentHash, // Destructure currentHash here
+    currentHash,
   } = useAppData();
   
   const { toast } = useToast();
@@ -28,12 +30,37 @@ export default function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
 
-  // Update document title when appData.pageTitle changes
   useEffect(() => {
     if (appData?.pageTitle) {
       document.title = appData.pageTitle;
     }
   }, [appData?.pageTitle]);
+
+  const handleCopyPageUrl = async () => {
+    if (!currentHash) {
+      toast({
+        title: "Error",
+        description: "Page URL not available yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const pageUrl = window.location.href;
+      await navigator.clipboard.writeText(pageUrl);
+      toast({
+        title: "URL Copied!",
+        description: "The page URL has been copied to your clipboard.",
+      });
+    } catch (err) {
+      console.error("Failed to copy URL: ", err);
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy the URL to your clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading || !appData) {
     return (
@@ -81,8 +108,6 @@ export default function Home() {
   };
 
   const handleOpenGroup = (group: LinkGroup) => {
-    // Logic for opening links is inside LinkGroupCard,
-    // This callback is mostly for potential future tracking or other actions.
     console.log("Opening group:", group.name);
   };
 
@@ -106,7 +131,6 @@ export default function Home() {
     <ThemeProvider 
       initialTheme={appData.theme} 
       onThemeChange={setTheme}
-      // storageKey is effectively handled by useAppData saving the whole AppData
     >
       <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
         <AppHeader
@@ -130,7 +154,15 @@ export default function Home() {
           initialData={editingGroup}
         />
          <footer className="py-6 text-center text-sm text-muted-foreground">
-          Powered by LinkWarp. Your current page hash: <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
+          <div className="flex items-center justify-center gap-2">
+            <span>Powered by LinkWarp. Your current page hash:</span>
+            <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
+            {currentHash && (
+              <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} aria-label="Copy page URL" className="h-6 w-6">
+                <ClipboardCopy className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </footer>
       </div>
     </ThemeProvider>
@@ -163,3 +195,4 @@ function CardSkeleton() {
     </div>
   );
 }
+
