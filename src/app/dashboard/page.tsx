@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, GripVertical } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,22 +81,22 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes} // Apply dnd attributes to the root for full card dragging
-      {...listeners}  // Apply dnd listeners to the root
+      {...attributes}
+      {...listeners}
       className={cn(
-        "touch-manipulation", 
+        "touch-manipulation",
         isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "z-auto cursor-grab"
       )}
     >
       <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
         <CardHeader className="pb-4">
-          <Link 
-            href={`/#${page.hash}`} 
-            className="block group" 
-            onClick={stopPropagation} 
-            onPointerDown={stopPropagation} 
-            onKeyDown={stopPropagation} // Allow keyboard focus without drag
-            tabIndex={0} // Make focusable
+          <Link
+            href={`/#${page.hash}`}
+            className="block group"
+            onClick={stopPropagation}
+            onPointerDown={stopPropagation}
+            onKeyDown={stopPropagation} 
+            tabIndex={0} 
           >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
               {page.title}
@@ -138,13 +138,13 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
         <CardFooter className="pt-4 border-t">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                className="w-full" 
-                aria-label={`Delete page ${page.title}`} 
-                onPointerDown={stopPropagation} // Crucial for button clickability
-                onClick={stopPropagation} // Also stop click if needed
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full"
+                aria-label={`Delete page ${page.title}`}
+                onPointerDown={stopPropagation} // Keep to prevent drag on button press
+                // onClick={stopPropagation} // REMOVE this to allow AlertDialog to handle click
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -205,9 +205,9 @@ export default function DashboardPage() {
               const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
 
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
-                localStorage.removeItem(key); 
+                localStorage.removeItem(key);
                 initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
-                continue; 
+                continue;
               }
 
               allLoadedPages.push({
@@ -227,7 +227,7 @@ export default function DashboardPage() {
 
       const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
       const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
-      
+
       if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
@@ -243,11 +243,11 @@ export default function DashboardPage() {
           processedHashes.add(hash);
         }
       }
-      
+
       const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
-          return b.lastModified - a.lastModified;
+          return b.lastModified - a.lastModified; // Newest first
         }
         if (a.lastModified) return -1;
         if (b.lastModified) return 1;
@@ -343,7 +343,7 @@ export default function DashboardPage() {
             <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
             <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
             <p className="mt-2 text-lg text-muted-foreground">
-              Looks like your dashboard is empty. Let's create your first page or add some link groups!
+              Looks like your dashboard is empty. Let's create your first page!
             </p>
             <Button onClick={handleCreateNewPage} className="mt-8" size="lg">
               <PlusCircle className="mr-2 h-5 w-5" />

@@ -158,7 +158,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="icon" onPointerDown={stopPropagation} aria-label="Delete group">
+                  <Button variant="destructive" size="icon" 
+                    onPointerDown={stopPropagation} // Keep to prevent drag on button press
+                    // onClick={stopPropagation} // REMOVE this to allow AlertDialog to handle click
+                    aria-label="Delete group">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -185,4 +188,3 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
     </Card>
   );
 }
-
