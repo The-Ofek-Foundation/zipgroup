@@ -2,8 +2,8 @@
 "use client";
 
 import type { AppData, LinkGroup } from "@/lib/types";
-import { useState, useEffect, useCallback, useRef } from "react"; // Added useRef
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'; // Using navigation hooks for App Router
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
 
@@ -11,10 +11,11 @@ function generateRandomHash(length = 8) {
   return Math.random().toString(36).substring(2, 2 + length);
 }
 
-const defaultAppData: Omit<AppData, 'theme' | 'customPrimaryColor'> & { theme?: AppData['theme'], customPrimaryColor?: AppData['customPrimaryColor'] } = {
-  pageTitle: "LinkWarp Dashboard",
+// Base default data without volatile fields like pageTitle or theme specifics
+const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor'> = {
   linkGroups: [],
 };
+
 
 export function useAppData() {
   const [appData, setAppData] = useState<AppData | null>(null);
@@ -24,7 +25,6 @@ export function useAppData() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Moved currentHashRef and its useEffect to the top level
   const currentHashRef = useRef<string | null>(currentHash);
   useEffect(() => {
     currentHashRef.current = currentHash;
@@ -35,7 +35,6 @@ export function useAppData() {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        // Ensure theme exists, default if not
         if (!parsedData.theme) {
           parsedData.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
@@ -67,54 +66,69 @@ export function useAppData() {
       if (loaded) {
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
-        // If hash exists but no data, it might be a new page with a pre-set hash or corrupted data.
-        // We can choose to initialize it or treat as an error. Here, we initialize.
         hashToUse = initialHash;
-        dataToLoad = { ...defaultAppData, theme: systemTheme, customPrimaryColor: undefined };
+        dataToLoad = { 
+          ...defaultAppDataBase, 
+          pageTitle: `LinkWarp Page ${hashToUse}`, 
+          theme: systemTheme, 
+          customPrimaryColor: undefined 
+        };
         saveData(hashToUse, dataToLoad);
       }
     } else {
       hashToUse = generateRandomHash();
-      dataToLoad = { ...defaultAppData, theme: systemTheme, customPrimaryColor: undefined };
+      dataToLoad = { 
+        ...defaultAppDataBase, 
+        pageTitle: `LinkWarp Page ${hashToUse}`,
+        theme: systemTheme, 
+        customPrimaryColor: undefined 
+      };
       saveData(hashToUse, dataToLoad);
       window.history.replaceState(null, '', `#${hashToUse}`);
     }
     
     setAppData(dataToLoad);
-    setCurrentHash(hashToUse); // This will update currentHashRef via its own useEffect
+    setCurrentHash(hashToUse);
     setIsLoading(false);
 
     const handleHashChange = () => {
       const newHash = window.location.hash.substring(1);
-      // Use currentHashRef.current to get the latest value of currentHash
       if (newHash && newHash !== currentHashRef.current) { 
+        setIsLoading(true);
         const newData = loadData(newHash);
         const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         if (newData) {
           setAppData({ ...newData, theme: newData.theme || currentSystemTheme });
         } else {
-          // If navigating to a new hash that has no data, initialize it.
-          const freshData: AppData = { ...defaultAppData, theme: currentSystemTheme, customPrimaryColor: undefined };
+          const freshData: AppData = { 
+            ...defaultAppDataBase, 
+            pageTitle: `LinkWarp Page ${newHash}`, 
+            theme: currentSystemTheme, 
+            customPrimaryColor: undefined 
+          };
           saveData(newHash, freshData);
           setAppData(freshData);
         }
-        setCurrentHash(newHash); // Update state, which also updates ref for next event
+        setCurrentHash(newHash);
+        setIsLoading(false);
       }
     };
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
 
-  }, [loadData, saveData]); // Dependencies for the main setup effect
+  }, [loadData, saveData]);
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
-      if (!prevData || !currentHash) return prevData;
+      if (!prevData || !currentHashRef.current) {
+          return prevData;
+      }
       const newData = { ...prevData, ...updates };
-      saveData(currentHash, newData);
+      saveData(currentHashRef.current, newData);
       return newData;
     });
-  }, [currentHash, saveData]);
+  }, [saveData]);
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -134,13 +148,16 @@ export function useAppData() {
   
   const createNewPage = useCallback(() => {
     const newHash = generateRandomHash();
+    const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    
     const newPageData: AppData = { 
-      ...defaultAppData, 
-      theme: appData?.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
-      customPrimaryColor: undefined // Reset custom color for new page
+      ...defaultAppDataBase,
+      pageTitle: `LinkWarp Page ${newHash}`, 
+      theme: appData?.theme || currentSystemTheme, // Use current appData's theme if available
+      customPrimaryColor: undefined 
     };
     saveData(newHash, newPageData);
-    window.location.hash = newHash; // This will trigger the hashchange listener
+    window.location.hash = newHash; 
   }, [saveData, appData?.theme]);
 
 
@@ -155,5 +172,3 @@ export function useAppData() {
     setCustomPrimaryColor,
   };
 }
-
-// Removed redundant React import from here

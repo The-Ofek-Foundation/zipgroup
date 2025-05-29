@@ -6,16 +6,24 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
-import { CustomColorPicker } from "@/components/theme/custom-color-picker"; // Added
-import { Zap } from "lucide-react"; // Icon for LinkWarp
+import { CustomColorPicker } from "@/components/theme/custom-color-picker";
+import { Zap } from "lucide-react";
 
 interface AppHeaderProps {
   pageTitle: string;
   onPageTitleChange: (newTitle: string) => void;
   onCreateNewPage: () => void;
+  customPrimaryColor: string | undefined;
+  onSetCustomPrimaryColor: (color?: string) => void;
 }
 
-export function AppHeader({ pageTitle, onPageTitleChange, onCreateNewPage }: AppHeaderProps) {
+export function AppHeader({ 
+  pageTitle, 
+  onPageTitleChange, 
+  onCreateNewPage,
+  customPrimaryColor,
+  onSetCustomPrimaryColor
+}: AppHeaderProps) {
   const [currentTitle, setCurrentTitle] = useState(pageTitle);
 
   useEffect(() => {
@@ -55,9 +63,12 @@ export function AppHeader({ pageTitle, onPageTitleChange, onCreateNewPage }: App
             aria-label="Page Title"
           />
         </div>
-        <div className="flex items-center gap-1"> {/* Reduced gap for more buttons */}
+        <div className="flex items-center gap-1">
           <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
-          <CustomColorPicker /> {/* Added */}
+          <CustomColorPicker 
+            currentCustomColor={customPrimaryColor}
+            onSetCustomColor={onSetCustomPrimaryColor}
+          />
           <ThemeSwitcher />
         </div>
       </div>

@@ -9,9 +9,9 @@ import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dia
 import type { LinkGroup, AppData } from "@/lib/types";
 import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import { Skeleton } from "@/components/ui/skeleton"; // For loading state
-import { Button } from "@/components/ui/button"; // For copy button
-import { ClipboardCopy } from "lucide-react"; // For copy icon
+import { Skeleton } from "@/components/ui/skeleton"; 
+import { Button } from "@/components/ui/button"; 
+import { ClipboardCopy } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -24,7 +24,7 @@ export default function Home() {
     setTheme,
     createNewPage,
     currentHash,
-    setCustomPrimaryColor, // Added for theme provider if it needs to pass it down, though provider uses appData directly
+    setCustomPrimaryColor,
   } = useAppData();
   
   const { toast } = useToast();
@@ -67,7 +67,6 @@ export default function Home() {
   if (isLoading || !appData) {
     return (
       <div className="min-h-screen flex flex-col">
-        {/* Skeleton Header */}
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <Skeleton className="h-8 w-32" />
@@ -75,11 +74,10 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Skeleton className="h-9 w-24" />
               <Skeleton className="h-9 w-9 rounded-md" />
-              <Skeleton className="h-9 w-9 rounded-md" /> {/* For custom color picker */}
+              <Skeleton className="h-9 w-9 rounded-md" />
             </div>
           </div>
         </header>
-        {/* Skeleton Content */}
         <main className="flex-grow container mx-auto p-4 md:p-8">
           <div className="flex justify-end mb-6">
             <Skeleton className="h-10 w-40" />
@@ -132,8 +130,8 @@ export default function Home() {
 
   return (
     <ThemeProvider 
-      appData={appData} // Pass the full appData object
-      onThemeChange={setTheme} // This is useAppData's setTheme for light/dark
+      appData={appData}
+      onThemeChange={setTheme}
     >
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
@@ -141,6 +139,8 @@ export default function Home() {
             pageTitle={appData.pageTitle}
             onPageTitleChange={setPageTitle}
             onCreateNewPage={createNewPage}
+            customPrimaryColor={appData.customPrimaryColor}
+            onSetCustomPrimaryColor={setCustomPrimaryColor}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <LinkGroupList
