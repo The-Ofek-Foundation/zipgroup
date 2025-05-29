@@ -70,10 +70,11 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 250ms ease',
+    transition: transition || 'transform 250ms ease', // Ensure transition is applied if transform is null initially
   };
 
-  const stopPropagation = (e: React.MouseEvent | React.PointerEvent) => {
+  // Clicks on buttons should not initiate a drag
+  const stopPropagation = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
 
@@ -83,23 +84,24 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
       style={style}
       className={cn(
         "touch-manipulation relative", // Added relative for absolute positioning of drag handle
-        isDragging ? "cursor-grabbing z-50 opacity-75 shadow-2xl ring-2 ring-primary" : "cursor-grab z-auto"
+        isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary" : "z-auto"
       )}
     >
-      <Button
+      {/* Drag handle button positioned at top-right of the card */}
+       <Button
         variant="ghost"
         size="icon"
-        {...attributes}
-        {...listeners}
-        className="absolute top-2 right-2 z-10 opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity hidden md:inline-flex" // Drag handle
+        {...attributes} // Spread DND attributes for dragging
+        {...listeners} // Spread DND listeners for drag initiation
+        className="absolute top-1 right-1 z-10 cursor-grab active:cursor-grabbing opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity hidden md:inline-flex"
         aria-label="Drag to reorder page"
-        onPointerDown={stopPropagation}
+        onPointerDown={stopPropagation} // Allow button interaction without drag starting on the handle itself
       >
         <GripVertical className="h-5 w-5" />
       </Button>
       <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
         <CardHeader className="pb-4">
-          <Link href={`/#${page.hash}`} className="block group">
+          <Link href={`/#${page.hash}`} className="block group" onClick={stopPropagation} onKeyDown={stopPropagation} tabIndex={0}>
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
               {page.title}
             </CardTitle>
@@ -140,7 +142,7 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
         <CardFooter className="pt-4 border-t">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="w-full" aria-label={`Delete page ${page.title}`} onPointerDown={stopPropagation}>
+              <Button variant="destructive" size="sm" className="w-full" aria-label={`Delete page ${page.title}`} onPointerDown={stopPropagation} onClick={stopPropagation}>
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
             </AlertDialogTrigger>
@@ -176,18 +178,18 @@ export default function DashboardPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const loadedPages: StoredPage[] = [];
-    let storedOrder: string[] = [];
+    const allLoadedPages: StoredPage[] = [];
+    let initialStoredOrder: string[] = [];
 
     if (typeof window !== 'undefined') {
       try {
         const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
         if (orderJson) {
-          storedOrder = JSON.parse(orderJson);
+          initialStoredOrder = JSON.parse(orderJson);
         }
       } catch (error) {
         console.error("Failed to parse page order from local storage:", error);
-        storedOrder = [];
+        initialStoredOrder = [];
       }
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -197,15 +199,16 @@ export default function DashboardPage() {
             const storedData = localStorage.getItem(key);
             if (storedData) {
               const parsedData = JSON.parse(storedData) as AppData;
+              const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
+
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
-                localStorage.removeItem(key); // Delete if no link groups
-                // Ensure this hash is also removed from storedOrder if it exists
-                storedOrder = storedOrder.filter(h => h !== key.substring(LOCAL_STORAGE_PREFIX.length));
-                continue; // Skip adding this page
+                localStorage.removeItem(key); 
+                // Also remove from initialStoredOrder if it exists there
+                initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
+                continue; 
               }
 
-              const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
-              loadedPages.push({
+              allLoadedPages.push({
                 hash: hash,
                 title: parsedData.pageTitle || `ZipGroup Page ${hash}`,
                 linkGroupCount: parsedData.linkGroups?.length || 0,
@@ -220,27 +223,28 @@ export default function DashboardPage() {
         }
       }
 
-      // Sort pages: first by storedOrder, then by lastModified (newest first), then by title
-      const pageMap = new Map(loadedPages.map(p => [p.hash, p]));
-      const orderedPagesFromStorage: StoredPage[] = [];
-      const remainingHashes = new Set(loadedPages.map(p => p.hash));
-
-      for (const hash of storedOrder) {
-        const page = pageMap.get(hash);
-        if (page) {
-          orderedPagesFromStorage.push(page);
-          remainingHashes.delete(hash);
-        }
-      }
+      // Reconcile initialStoredOrder with actually existing pages
+      const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
+      const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
       
-      // Update storedOrder to only contain valid, existing hashes
-      const validStoredOrder = orderedPagesFromStorage.map(p => p.hash);
-      if (validStoredOrder.length !== storedOrder.length) {
+      if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
 
+      // Sort pages: first by validStoredOrder, then by lastModified (newest first), then by title
+      const pageMap = new Map(allLoadedPages.map(p => [p.hash, p]));
+      const finalPages: StoredPage[] = [];
+      const processedHashes = new Set<string>();
 
-      const remainingPages = Array.from(remainingHashes).map(hash => pageMap.get(hash)!);
+      for (const hash of validStoredOrder) {
+        const page = pageMap.get(hash);
+        if (page) {
+          finalPages.push(page);
+          processedHashes.add(hash);
+        }
+      }
+      
+      const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
           return b.lastModified - a.lastModified;
@@ -250,7 +254,7 @@ export default function DashboardPage() {
         return a.title.localeCompare(b.title);
       });
 
-      setPages([...orderedPagesFromStorage, ...remainingPages]);
+      setPages([...finalPages, ...remainingPages]);
     }
     setIsLoading(false);
   }, []);
@@ -299,7 +303,9 @@ export default function DashboardPage() {
 
         const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
         const newOrderOfHashes = reorderedPages.map(p => p.hash);
-        localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrderOfHashes));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrderOfHashes));
+        }
         return reorderedPages;
       });
     }
@@ -363,3 +369,4 @@ export default function DashboardPage() {
   );
 }
 
+    
