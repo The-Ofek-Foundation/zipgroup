@@ -2,21 +2,20 @@
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import LucideIcon from "@/components/icons/lucide-icon";
 import { ExternalLink, Edit3, Trash2, Link as LinkIcon, AppWindow } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"; // Changed from AlertDialog
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -32,6 +31,7 @@ interface LinkGroupCardProps {
 
 export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow, isDragging }: LinkGroupCardProps) {
   const { toast } = useToast();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const handleOpenLinks = () => {
     if (group.urls.length === 0) {
@@ -75,8 +75,6 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
   };
 
   const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent) => {
-    // This is for regular buttons that are NOT AlertDialogTriggers
-    // to prevent drag when clicking them.
     e.stopPropagation();
   };
 
@@ -156,34 +154,31 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </TooltipContent>
           </Tooltip>
 
-          <AlertDialog>
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="icon" 
-                    // REMOVE onPointerDown={stopPropagation} here to allow AlertDialog to function
-                    aria-label="Delete group">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
+                {/* Removed onPointerDown for DialogTrigger as per previous fix attempt, rely on drag delay sensor */}
+                <Button variant="destructive" size="icon" onClick={() => setIsDeleteDialogOpen(true)} aria-label="Delete group">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Delete group</p>
               </TooltipContent>
             </Tooltip>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Are you sure?</DialogTitle>
+                <DialogDescription>
                   This action cannot be undone. This will permanently delete the link group "{group.name}".
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onDelete(group)}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={() => { onDelete(group); setIsDeleteDialogOpen(false); }}>Delete</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardFooter>
     </Card>

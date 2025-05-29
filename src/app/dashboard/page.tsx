@@ -7,18 +7,16 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, GripVertical } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  Dialog, // Changed from AlertDialog
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"; // Changed from AlertDialog
 import { useToast } from "@/hooks/use-toast";
 import type { AppData } from "@/lib/types";
 import { format } from 'date-fns';
@@ -59,6 +57,7 @@ interface SortablePageCardItemProps {
 }
 
 function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const {
     attributes,
     listeners,
@@ -73,9 +72,10 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
     transition: transition || 'transform 250ms ease',
   };
 
-  const stopPropagation = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
+  const stopPropagationForLink = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
+
 
   return (
     <div
@@ -93,9 +93,9 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
           <Link
             href={`/#${page.hash}`}
             className="block group"
-            onClick={stopPropagation} // Keep for link
-            onPointerDown={stopPropagation} // Keep for link to prevent drag
-            onKeyDown={stopPropagation} 
+            onClick={stopPropagationForLink}
+            onPointerDown={stopPropagationForLink}
+            onKeyDown={stopPropagationForLink} 
             tabIndex={0} 
           >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
@@ -136,36 +136,38 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
           )}
         </CardContent>
         <CardFooter className="pt-4 border-t">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <DialogTrigger asChild>
+              {/* No onPointerDown on DialogTrigger, rely on drag sensor activation delay */}
               <Button
                 variant="destructive"
                 size="sm"
                 className="w-full"
                 aria-label={`Delete page ${page.title}`}
-                // REMOVE onPointerDown={stopPropagation} here to allow AlertDialog to function
+                onClick={() => setIsDeleteDialogOpen(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Are you absolutely sure?</DialogTitle>
+                <DialogDescription>
                   This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => onDelete(page.hash)}
-                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => { onDelete(page.hash); setIsDeleteDialogOpen(false); }}
+                  // className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" // variant="destructive" handles this
                 >
                   Delete Page
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardFooter>
       </Card>
     </div>
@@ -204,8 +206,8 @@ export default function DashboardPage() {
               const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
 
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
-                localStorage.removeItem(key); // Clean up empty pages
-                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); // Remove from order
+                localStorage.removeItem(key); 
+                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); 
                 continue;
               }
 
@@ -225,11 +227,9 @@ export default function DashboardPage() {
         }
       }
 
-      // Reconcile stored order with existing pages
       const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
       const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
 
-      // If the stored order had invalid hashes, update localStorage
       if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
@@ -238,7 +238,6 @@ export default function DashboardPage() {
       const finalPages: StoredPage[] = [];
       const processedHashes = new Set<string>();
 
-      // Add pages based on valid stored order
       for (const hash of validStoredOrder) {
         const page = pageMap.get(hash);
         if (page) {
@@ -247,15 +246,14 @@ export default function DashboardPage() {
         }
       }
 
-      // Add remaining pages (not in stored order), sorted by lastModified, then title
       const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
-          return b.lastModified - a.lastModified; // Newest first
+          return b.lastModified - a.lastModified; 
         }
-        if (a.lastModified) return -1; // Pages with lastModified come before those without
+        if (a.lastModified) return -1; 
         if (b.lastModified) return 1;
-        return a.title.localeCompare(b.title); // Fallback to title sort
+        return a.title.localeCompare(b.title); 
       });
 
       setPages([...finalPages, ...remainingPages]);
@@ -272,7 +270,6 @@ export default function DashboardPage() {
       localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hashToDelete}`);
       setPages(prevPages => {
         const newPages = prevPages.filter(p => p.hash !== hashToDelete);
-        // Update the stored order as well
         const newOrder = newPages.map(p => p.hash);
         localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrder));
         return newPages;
@@ -294,8 +291,8 @@ export default function DashboardPage() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 150, // User must press and hold for 150ms
-        tolerance: 5, // And move less than 5px during that time
+        delay: 150, 
+        tolerance: 5, 
       },
     }),
     useSensor(KeyboardSensor, {
@@ -309,7 +306,7 @@ export default function DashboardPage() {
       setPages((currentPages) => {
         const oldIndex = currentPages.findIndex((p) => p.hash === active.id);
         const newIndex = currentPages.findIndex((p) => p.hash === over.id);
-        if (oldIndex === -1 || newIndex === -1) return currentPages; // Should not happen
+        if (oldIndex === -1 || newIndex === -1) return currentPages; 
 
         const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
         const newOrderOfHashes = reorderedPages.map(p => p.hash);
