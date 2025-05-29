@@ -11,7 +11,7 @@ import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2, BookOpenCheck } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2, BookOpenCheck, GripVertical } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -92,20 +92,23 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
       className={cn(
         "touch-manipulation",
         isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "z-auto cursor-grab"
       )}
     >
-      <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
+      {/* Entire card is draggable, apply listeners to the root */}
+      <Card
+        className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full"
+        {...attributes}
+        {...listeners}
+      >
         <CardHeader className="pb-4">
           <Link
             href={`/#${page.hash}`}
             className="block group"
             onClick={stopPropagationForEvents}
-            onPointerDown={stopPropagationForEvents}
+            onPointerDown={stopPropagationForEvents} // Prevent drag when clicking link
             onKeyDown={stopPropagationForEvents}
             tabIndex={0}
           >
@@ -153,7 +156,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 variant="outline"
                 size="sm"
                 onClick={(e) => { stopPropagationForEvents(e); onShare(page.hash); }}
-                onPointerDown={stopPropagationForEvents}
+                onPointerDown={stopPropagationForEvents} // Prevent drag
                 aria-label={`Share page ${page.title}`}
               >
                 <Share2 className="mr-2 h-4 w-4" /> Share
@@ -170,8 +173,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 variant="destructive"
                 size="sm"
                 aria-label={`Delete page ${page.title}`}
-                // onClick={(e) => { stopPropagationForEvents(e); setIsDeleteDialogOpen(true); }} - Let dialog handle open
-                // onPointerDown={stopPropagationForEvents} - Removed to allow dialog interaction with drag delay
+                // onClick={(e) => { stopPropagationForEvents(e); }} // Let dialog handle open
+                onPointerDown={stopPropagationForEvents} // Prevent drag
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -206,12 +209,12 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-  const { 
-    themeMode, 
-    customPrimaryColor, 
-    isLoading: isThemeLoading, 
-    setDashboardThemeMode, 
-    setDashboardCustomPrimaryColor 
+  const {
+    themeMode,
+    customPrimaryColor,
+    isLoading: isThemeLoading,
+    setDashboardThemeMode,
+    setDashboardCustomPrimaryColor
   } = useDashboardTheme();
 
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
@@ -299,7 +302,7 @@ export default function DashboardPage() {
 
       setPages([...finalPages, ...remainingPages]);
     }
-    setInitialDataLoaded(true); 
+    setInitialDataLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -368,12 +371,12 @@ export default function DashboardPage() {
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { lastModified, ...shareableData } = parsedData; 
-        
+        const { lastModified, ...shareableData } = parsedData;
+
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
         const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
-        
+
         await navigator.clipboard.writeText(shareUrl);
         toast({
           title: "Share Link Copied!",
@@ -438,10 +441,8 @@ export default function DashboardPage() {
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <div className="flex items-center gap-2">
-              <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors">
-                <Home className="h-6 w-6" />
-                <h1 className="text-2xl font-semibold">ZipGroup Dashboard</h1>
-              </Link>
+              <Home className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-semibold text-primary">ZipGroup Dashboard</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={handleCreateNewPage} size="sm">
@@ -492,9 +493,9 @@ export default function DashboardPage() {
               <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {pages.map(page => (
-                    <SortablePageCardItem 
-                      key={page.hash} 
-                      page={page} 
+                    <SortablePageCardItem
+                      key={page.hash}
+                      page={page}
                       onDelete={handleDeletePage}
                       onShare={handleSharePage}
                     />
@@ -511,4 +512,3 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
-    
