@@ -48,6 +48,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
+const DASHBOARD_THEME_MODE_KEY = "linkwarp_dashboard_theme_mode";
+const DASHBOARD_CUSTOM_COLOR_KEY = "linkwarp_dashboard_custom_primary_color";
+
 
 interface StoredPage {
   hash: string;
@@ -169,7 +172,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 variant="destructive"
                 size="sm"
                 aria-label={`Delete page ${page.title}`}
-                onClick={(e) => { stopPropagationForEvents(e); setIsDeleteDialogOpen(true); }}
+                onClick={(e) => { setIsDeleteDialogOpen(true); }} // Keep stopPropagationForEvents if needed for drag context on parent
                 // onPointerDown={stopPropagationForEvents} // Removed to allow dialog interaction with drag delay
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -232,7 +235,13 @@ export default function DashboardPage() {
 
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith(LOCAL_STORAGE_PREFIX) && key !== DASHBOARD_ORDER_KEY) {
+        if (
+          key &&
+          key.startsWith(LOCAL_STORAGE_PREFIX) &&
+          key !== DASHBOARD_ORDER_KEY &&
+          key !== DASHBOARD_THEME_MODE_KEY &&
+          key !== DASHBOARD_CUSTOM_COLOR_KEY
+        ) {
           try {
             const storedData = localStorage.getItem(key);
             if (storedData) {
@@ -490,3 +499,4 @@ export default function DashboardPage() {
     </TooltipProvider>
   );
 }
+    
