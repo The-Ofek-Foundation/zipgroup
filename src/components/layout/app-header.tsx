@@ -5,7 +5,8 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap } from "lucide-react";
+import { Zap, ListChecks } from "lucide-react";
+import Link from "next/link";
 
 interface AppHeaderProps {
   onCreateNewPage: () => void;
@@ -26,8 +27,13 @@ export function AppHeader({
           <Zap className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
         </div>
-        {/* Page title input removed from here */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard" passHref legacyBehavior={false} asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <ListChecks className="h-4 w-4"/> 
+              Dashboard
+            </Button>
+          </Link>
           <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
           <CustomColorPicker 
             currentCustomColor={customPrimaryColor}
