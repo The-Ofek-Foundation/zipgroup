@@ -98,11 +98,12 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
           {group.urls.length > 3 && <li className="italic">...and {group.urls.length - 3} more</li>}
         </ul>
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t gap-2">
-        <div className="flex w-full sm:w-auto gap-2">
+      <CardFooter className="flex flex-col items-stretch gap-2 pt-4 border-t sm:flex-row sm:flex-nowrap sm:justify-between sm:items-center sm:gap-x-2">
+        {/* Left Button Group */}
+        <div className="flex w-full gap-x-2 sm:w-auto">
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button onClick={handleOpenLinks} className="flex-1 group justify-center" variant="default">
+                    <Button onClick={handleOpenLinks} className="justify-center group w-full sm:w-auto" variant="default">
                         <ExternalLink className="h-4 w-4 group-hover:animate-pulse" />
                         <span className="hidden md:inline ml-2">Open All</span>
                     </Button>
@@ -113,7 +114,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </Tooltip>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button onClick={handleOpenInNewWindowClick} className="flex-1 group justify-center" variant="outline">
+                    <Button onClick={handleOpenInNewWindowClick} className="justify-center group w-full sm:w-auto" variant="outline">
                         <AppWindow className="h-4 w-4" />
                         <span className="hidden md:inline ml-2">New Window</span>
                     </Button>
@@ -123,7 +124,8 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 </TooltipContent>
             </Tooltip>
         </div>
-        <div className="flex gap-2 self-end sm:self-center">
+        {/* Right Button Group */}
+        <div className="flex self-end gap-x-2 sm:self-auto sm:flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">
@@ -166,3 +168,4 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
     </Card>
   );
 }
+
