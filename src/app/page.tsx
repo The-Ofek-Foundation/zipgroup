@@ -11,6 +11,7 @@ import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton"; 
 import { Button } from "@/components/ui/button"; 
+import { Input } from "@/components/ui/input";
 import { ClipboardCopy } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -31,12 +32,33 @@ export default function Home() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
+  const [localPageTitle, setLocalPageTitle] = useState("");
 
   useEffect(() => {
     if (appData?.pageTitle) {
       document.title = appData.pageTitle;
+      setLocalPageTitle(appData.pageTitle);
     }
   }, [appData?.pageTitle]);
+
+  const handlePageTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalPageTitle(event.target.value);
+  };
+
+  const handlePageTitleBlur = () => {
+    if (appData && localPageTitle !== appData.pageTitle) {
+      setPageTitle(localPageTitle);
+    }
+  };
+  
+  const handlePageTitleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      if (appData && localPageTitle !== appData.pageTitle) {
+        setPageTitle(localPageTitle);
+      }
+      (event.target as HTMLInputElement).blur();
+    }
+  };
 
   const handleCopyPageUrl = async () => {
     if (!currentHash) {
@@ -69,9 +91,8 @@ export default function Home() {
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-8 w-1/2 md:w-1/3" />
-            <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-32" /> {/* Logo Placeholder */}
+            <div className="flex items-center gap-2"> {/* Controls Placeholder */}
               <Skeleton className="h-9 w-24" />
               <Skeleton className="h-9 w-9 rounded-md" />
               <Skeleton className="h-9 w-9 rounded-md" />
@@ -79,6 +100,9 @@ export default function Home() {
           </div>
         </header>
         <main className="flex-grow container mx-auto p-4 md:p-8">
+           <div className="mb-8 text-center"> {/* Page Title Placeholder */}
+            <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
+          </div>
           <div className="flex justify-end mb-6">
             <Skeleton className="h-10 w-40" />
           </div>
@@ -109,7 +133,7 @@ export default function Home() {
   };
 
   const handleOpenGroup = (group: LinkGroup) => {
-    console.log("Opening group:", group.name);
+    // Logic for opening group (already present)
   };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
@@ -136,13 +160,24 @@ export default function Home() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            pageTitle={appData.pageTitle}
-            onPageTitleChange={setPageTitle}
             onCreateNewPage={createNewPage}
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
+            <div className="mb-8 text-center">
+              <Input
+                type="text"
+                value={localPageTitle}
+                onChange={handlePageTitleChange}
+                onBlur={handlePageTitleBlur}
+                onKeyPress={handlePageTitleKeyPress}
+                className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
+                placeholder="Enter Page Title"
+                aria-label="Page Title"
+              />
+            </div>
+
             <LinkGroupList
               groups={appData.linkGroups}
               onAddGroup={handleAddGroup}
