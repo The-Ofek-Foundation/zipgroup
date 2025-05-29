@@ -49,9 +49,23 @@ function PageSkeletonForSuspense() {
 
 function PageRouter() {
   const searchParams = useSearchParams();
-  const pathname = usePathname(); // This hook provides the current path
-
+  const pathname = usePathname();
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
+  const [urlHashForKeystr, setUrlHashForKeystr] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This effect updates urlHashForKeystr whenever the hash actually changes in the URL
+    const updateHashStateFromLocation = () => {
+      if (typeof window !== 'undefined') {
+        const currentActualHash = window.location.hash.substring(1).split('?')[0];
+        setUrlHashForKeystr(currentActualHash || null);
+      }
+    };
+    updateHashStateFromLocation(); // Initial check
+    window.addEventListener('hashchange', updateHashStateFromLocation);
+    return () => window.removeEventListener('hashchange', updateHashStateFromLocation);
+  }, []);
+
 
   useEffect(() => {
     // Effect to determine renderMode based on URL state (hash, sharedData)
@@ -61,9 +75,9 @@ function PageRouter() {
         return;
       }
 
-      // Use the pathname from the hook, which is reactive
       const currentPath = pathname;
       const hash = window.location.hash.substring(1).split('?')[0];
+      // Directly use searchParams from the hook, which is reactive
       const sharedDataParam = searchParams.get('sharedData');
 
       if (currentPath === '/' && !hash && !sharedDataParam) {
@@ -76,16 +90,17 @@ function PageRouter() {
     determineMode(); // Initial determination
 
     // Listen for hash changes to re-determine mode
-    const handleHashChange = () => {
+    // This is important for navigation like clicking "Home" when on a page with a hash
+    const handleHashChangeForMode = () => {
       determineMode();
     };
-    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleHashChangeForMode);
 
     // Cleanup listener on component unmount
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('hashchange', handleHashChangeForMode);
     };
-  }, [pathname, searchParams]); // Dependencies: pathname and searchParams
+  }, [pathname, searchParams]); // Dependencies: pathname and searchParams ensure this re-runs if query params change
 
 
   if (renderMode === 'loading') {
@@ -99,8 +114,13 @@ function PageRouter() {
       </TooltipProvider>
     );
   }
+  
   // renderMode must be 'page'
-  return <ActualPageContent />;
+  // Generate a key that changes when transitioning from shared/pristine to a hashed page
+  const sharedDataParamValue = searchParams.get('sharedData');
+  const pageKey = urlHashForKeystr || (sharedDataParamValue ? `shared-${sharedDataParamValue.substring(0,10)}` : 'new-unsaved-page');
+  
+  return <ActualPageContent key={pageKey} />;
 }
 
 
