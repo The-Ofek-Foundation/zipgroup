@@ -61,11 +61,9 @@ export function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
             duration: 7000,
           });
-          // Clean the URL *after* initialSharedData is set and toast is shown.
-          // The re-render with new initialSharedData will trigger useAppData to update.
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.delete('sharedData');
-          router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
+          // DO NOT Clean the URL here. Let the sharedData param persist
+          // until the user saves or navigates away.
+          // The router.push in createNewPageFromAppData will navigate to a clean /#hash URL.
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -73,12 +71,10 @@ export function ActualPageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-           const currentUrl = new URL(window.location.href);
-           currentUrl.searchParams.delete('sharedData');
-           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
+           // Also do not clean URL on error, user might want to copy/debug it.
         }
       }
-      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found
+      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found, or if an error occurred.
     }
   }, [searchParams, router, pathname, toast, sharedDataProcessed]); // Depends on searchParams
 
@@ -99,8 +95,8 @@ export function ActualPageContent() {
   const [localPageTitle, setLocalPageTitle] = useState("");
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
 
-  const isPristineOrSharedPage = !currentHash && !!appData;
-  const isReadOnlyPreview = isPristineOrSharedPage && !!initialSharedData;
+  const isPristineOrSharedPage = !currentHash && !!appData; // True if appData is loaded but there's no hash
+  const isReadOnlyPreview = isPristineOrSharedPage && !!initialSharedData; // Only shared previews are read-only
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -142,9 +138,8 @@ export function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      // Ensure pathname is just '/' for root-level pages
-      const sharePathname = pathname === '/sample' ? '/' : pathname; // Should be '/' when this component is used
-      const shareUrl = `${window.location.origin}${sharePathname}?sharedData=${encodedJson}`; // No hash
+      const sharePathname = pathname === '/sample' ? '/' : pathname;
+      const shareUrl = `${window.location.origin}${sharePathname}?sharedData=${encodedJson}`;
 
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -226,7 +221,7 @@ export function ActualPageContent() {
 
         otherUrlsFull.forEach(url => {
           try {
-            new URL(url);
+            new URL(url); // Validate
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
@@ -242,14 +237,14 @@ export function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrlFull);
+            new URL(firstUrlFull); // Validate
             console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
           }
-        }, 250);
+        }, 250); // Delay to allow other tabs to open
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
       } else if (!group) {
@@ -280,8 +275,8 @@ export function ActualPageContent() {
     }
   };
 
-  if (isLoading || !appData || !sharedDataProcessed) {
-    return null;
+  if (isLoading || !appData || !sharedDataProcessed) { // Wait for sharedData to be processed
+    return null; // Or your PageSkeletonForSuspense, but null might be better to avoid flashes
   }
 
   const handleAddGroup = () => {
@@ -322,12 +317,11 @@ export function ActualPageContent() {
     const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
-        title: initialSharedData ? "Shared Page Saved!" : "Page Saved!", // This distinction is fine
+        title: initialSharedData ? "Shared Page Saved!" : "Page Saved!",
         description: initialSharedData
-          ? "The shared page is now part of your home."
-          : "This page is now saved to your home.",
+          ? "The shared page is now part of your home page."
+          : "This page is now saved to your home page.",
       });
-      // No router.push needed here, useAppData's createNewPageFromAppData handles it
     } else {
       toast({
         title: "Save Failed",
@@ -353,7 +347,7 @@ export function ActualPageContent() {
             onInitiateShare={handleShareCurrentPage}
             canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
             showHomePageLink={true}
-            showSamplePageLink={false}
+            showSamplePageLink={false} // Not shown on actual page content view
             showShareButton={true}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
@@ -378,15 +372,15 @@ export function ActualPageContent() {
               )}
             </div>
 
-            {isPristineOrSharedPage && (
+            {isPristineOrSharedPage && ( // This block is for unsaved pages (new blank, or shared preview)
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow" data-joyride="interactive-sample-info">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                  <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
+                  {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!" /* This branch will be less common now as / shows dashboard */}
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home to make it your own."
+                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own."
                     : "Customize your new page's title, theme, and link groups below. When you're ready, save it to start using your new ZipGroup page!"
                   }
                 </p>
@@ -401,9 +395,9 @@ export function ActualPageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Home" : "Save This Page to My Home"}
+                  {initialSharedData ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
                 </Button>
-                 {!initialSharedData && (
+                 {!initialSharedData && pathname !=='/sample' && ( // Show tour button for truly new pages not sample/shared
                   <Button variant="outline" size="lg" asChild className="mt-4 sm:mt-0 sm:ml-3">
                      <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
@@ -411,15 +405,16 @@ export function ActualPageContent() {
               </div>
             )}
 
+            {/* LinkGroupList is now always rendered if appData exists, even for shared/pristine */}
             {appData && (
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup}
-                  onEditGroup={handleEditGroup}
-                  onDeleteGroup={handleDeleteGroup}
+                  onAddGroup={handleAddGroup} // Will be disabled by isReadOnlyPreview inside LinkGroupList
+                  onEditGroup={handleEditGroup} // Will be disabled by isReadOnlyPreview in LinkGroupCard
+                  onDeleteGroup={handleDeleteGroup} // Will be disabled by isReadOnlyPreview in LinkGroupCard
                   onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow}
+                  onOpenInNewWindow={handleOpenGroupInNewWindow} // Will be disabled by isReadOnlyPreview in LinkGroupCard
                   isReadOnlyPreview={true}
                 />
               ) : (
@@ -427,12 +422,12 @@ export function ActualPageContent() {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEndLinkGroups}
-                  disabled={isReadOnlyPreview}
+                  disabled={isReadOnlyPreview} // Should be false here
                 >
                   <SortableContext
                     items={appData.linkGroups.map(g => g.id)}
                     strategy={rectSortingStrategy}
-                    disabled={isReadOnlyPreview}
+                    disabled={isReadOnlyPreview} // Should be false here
                   >
                     <LinkGroupList
                       groups={appData.linkGroups}
@@ -460,3 +455,4 @@ export function ActualPageContent() {
     </ThemeProvider>
   );
 }
+
