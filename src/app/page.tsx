@@ -77,6 +77,7 @@ function PageContent() {
       return;
     }
     try {
+      // Ensure only the base URL + path + hash is copied, no query params
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -146,50 +147,66 @@ function PageContent() {
 
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    // This effect runs in the newly opened "helper" window/tab.
+    // It needs appData to be loaded for the currentHash of this helper tab.
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      let urlCleared = false;
+      const urlToClearParamsFrom = `${pathname}#${currentHash}`; // URL for the helper tab once params are cleared.
 
       if (group && group.urls.length > 0) {
         toast({
-          title: "Opening Links...",
-          description: `Now opening ${group.urls.length} link(s) from "${group.name}". This tab will become the first link.`,
-          duration: 7000,
+          title: `Opening "${group.name}"...`,
+          description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. Please check it if links do not appear. This tab will become the first link.`,
+          duration: 10000, // Longer duration for this important message
         });
 
         const [firstUrl, ...otherUrls] = group.urls;
+        let openedSuccessfullyCount = 0;
 
         otherUrls.forEach(url => {
           try {
-            new URL(url); 
-            window.open(url, '_blank');
+            new URL(url); // Validate URL
+            const newTab = window.open(url, '_blank');
+            if (newTab) {
+              openedSuccessfullyCount++;
+            } else {
+              // This branch is often not hit directly due to silent blocking by browsers.
+              // The main toast serves as a general warning.
+              console.warn(`Popup blocker may have prevented opening: ${url}`);
+              toast({ title: "Popup Might Be Active", description: `Could not open: ${url}. Check popup blocker.`, variant: "destructive", duration: 6000 });
+            }
           } catch (e) {
             console.warn(`Invalid URL skipped in new window: ${url}`);
             toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
           }
         });
         
+        // Now handle the first URL and clean up the helper tab's URL
         try {
-          new URL(firstUrl); 
+          new URL(firstUrl); // Validate first URL
+          // IMPORTANT: Clear the query parameter *before* attempting to navigate the current (helper) tab.
+          // If navigation succeeds, this tab is gone. If it fails, the URL is clean for subsequent interaction.
+          router.replace(urlToClearParamsFrom, { scroll: false });
+          
+          // Attempt to navigate the current tab to the first URL after a short delay.
+          // This delay gives a moment for other tabs to initiate opening and for router.replace to settle.
           setTimeout(() => {
              window.location.replace(firstUrl);
-          }, 1500);
+             // If window.location.replace fails to navigate away (e.g., due to about:blank issues or other errors),
+             // the tab will remain on the (now cleaned) URL.
+          }, 250); // Short delay
         } catch (e) {
            console.error(`Invalid first URL, cannot replace helper tab: ${firstUrl}`);
-           toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain.`, variant: "destructive"});
+           toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
+           // Ensure param is cleared if firstUrl is bad.
+           router.replace(urlToClearParamsFrom, { scroll: false }); 
         }
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
+        router.replace(urlToClearParamsFrom, { scroll: false }); 
       } else if (group === undefined) { 
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-      }
-
-      // Clear the query parameter after attempting to process the group
-      // This ensures it's not cleared prematurely if appData is still loading on first pass
-      if (!urlCleared) { // Check if already cleared, though it should only run once if logic is correct
-        const newUrl = `${pathname}#${currentHash}`; 
-        router.replace(newUrl, { scroll: false }); 
-        // urlCleared = true; // If we were to allow re-entry in more complex scenarios
+        router.replace(urlToClearParamsFrom, { scroll: false }); 
       }
     }
   }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
@@ -401,3 +418,4 @@ function PageSkeletonForSuspense() {
   );
 }
 
+    
