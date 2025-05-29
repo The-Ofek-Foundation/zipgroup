@@ -98,7 +98,7 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
             size="icon"
             onClick={() => removeUrlField(item.id)}
             aria-label="Remove URL"
-            disabled={urlsCount <= 1} // Simplified: disable if it's the only item
+            disabled={urlsCount <= 1} 
           >
             <XCircle className="h-5 w-5 text-destructive" />
           </Button>
@@ -112,7 +112,6 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
 }
 
 export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputProps) {
-  // Initialize internal state from propUrls, ensuring propUrls is an array.
   const [items, setItems] = useState<UrlItem[]>(() =>
     (propUrls || []).map(urlValue => ({ id: crypto.randomUUID(), value: urlValue }))
   );
@@ -128,7 +127,7 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     if (JSON.stringify(safePropUrls) !== JSON.stringify(currentItemValues)) {
       setItems(safePropUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
     }
-  }, [propUrls]); // Only depend on propUrls for this effect.
+  }, [propUrls]); // IMPORTANT: Only depend on propUrls for this effect.
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -153,14 +152,9 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
   };
 
   const removeUrlField = (id: string) => {
-    // Filter out the item to be removed
     const newItems = items.filter(item => item.id !== id);
 
     if (newItems.length === 0) {
-      // If removing this field would leave no fields,
-      // instead, reset it to an empty string if it's the last one,
-      // or add a new empty field if the list was truly emptied by the filter.
-      // This ensures there's always at least one input field.
       const fallbackItem = { id: crypto.randomUUID(), value: "" };
       setItems([fallbackItem]);
       onChange([fallbackItem.value]);
@@ -180,10 +174,10 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
         
         if (oldIndex !== -1 && newIndex !== -1) {
           const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
-          onChange(reorderedItems.map(item => item.value)); // Report change to parent form
-          return reorderedItems; // Update local state
+          onChange(reorderedItems.map(item => item.value)); 
+          return reorderedItems; 
         }
-        return currentItems; // Should not happen if IDs are correct
+        return currentItems; 
       });
     }
   }
