@@ -360,7 +360,8 @@ export default function DashboardPage() {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        const { lastModified, ...shareableData } = parsedData;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { lastModified, ...shareableData } = parsedData; 
         
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
