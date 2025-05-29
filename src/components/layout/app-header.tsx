@@ -5,9 +5,11 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, Home, Share2 } from "lucide-react"; // Changed ListChecks to Home
+import { Zap, HomeIcon, Share2 } from "lucide-react"; 
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePathname } from 'next/navigation';
+
 
 interface AppHeaderProps {
   onCreateNewPage: () => void;
@@ -28,6 +30,7 @@ export function AppHeader({
   canShareCurrentPage = false,
   joyrideProps = {},
 }: AppHeaderProps) {
+  const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -40,13 +43,12 @@ export function AppHeader({
           <Button asChild variant="outline" size="sm">
              <Link href="/">
               <span className="flex items-center gap-1.5">
-                <Home className="h-4 w-4"/> {/* Changed from ListChecks */}
-                Dashboard
+                <HomeIcon className="h-4 w-4"/> 
+                Home
               </span>
             </Link>
           </Button>
-          {/* New Page button is disabled on shared previews, but enabled on /sample to allow saving the sample */}
-          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && !canShareCurrentPage && pathname !== '/sample'}>New Page</Button>
+          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && pathname !== '/sample'}>New Page</Button>
           
           {onInitiateShare && (
             <Tooltip>

@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HomeIcon as HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react"; // Added HomeIcon alias
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -53,10 +53,10 @@ import { CustomColorPicker } from "@/components/theme/custom-color-picker";
 import { hexToHslValues } from "@/lib/color-utils";
 
 
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
-const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
-const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Internal prefix, not changing
+const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order"; // Internal key, not changing
+const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode'; // Internal key, not changing
+const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color'; // Internal key, not changing
 
 
 interface StoredPage {
@@ -218,9 +218,9 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
 
 function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true); // Renamed for clarity
+  const [isLoadingData, setIsLoadingData] = useState(true); 
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData(); // From useAppData in the same file context
+  const { createNewBlankPageAndRedirect } = useAppData(); 
 
   const {
     themeMode,
@@ -442,7 +442,7 @@ function DashboardView() {
   if (isLoadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-xl text-muted-foreground">Loading your ZipGroup dashboard...</p>
+        <p className="text-xl text-muted-foreground">Loading your ZipGroup home...</p>
       </div>
     );
   }
@@ -454,7 +454,7 @@ function DashboardView() {
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <div className="flex items-center gap-2">
               <HomeIcon className="mr-2 h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-semibold text-primary">ZipGroup Dashboard</h1>
+              <h1 className="text-2xl font-semibold text-primary">ZipGroup Home</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={handleCreateNewPage} size="sm">
@@ -485,7 +485,7 @@ function DashboardView() {
               <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
               <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
               <p className="mt-2 text-lg text-muted-foreground">
-                Looks like your dashboard is empty. Let's create your first page!
+                Looks like your home page is empty. Let's create your first page!
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
                 <Button onClick={handleCreateNewPage} size="lg">
@@ -543,20 +543,18 @@ function ActualPageContent() {
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
       const sharedDataParam = currentUrlSearchParams.get('sharedData');
 
-      if (sharedDataParam && !currentHashFromUrlRef.current) { // Only process if no hash
+      if (sharedDataParam && !currentHashFromUrlRef.current) { 
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
           setInitialSharedData(parsedData);
           toast({
             title: "Shared Page Loaded",
-            description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
+            description: "You're viewing a shared page. Click 'Save This Page' to add it to your home page.",
             duration: 7000,
           });
-          // Clean URL after processing
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.delete('sharedData');
-          // Preserve hash if any, though typically for sharedData there isn't one on initial load
           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
 
         } catch (error) {
@@ -635,7 +633,6 @@ function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      // Share link will now have query param before hash
       const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}#${currentHash}`;
 
       await navigator.clipboard.writeText(shareUrl);
@@ -664,7 +661,6 @@ function ActualPageContent() {
       return;
     }
 
-    // Construct URL with query param BEFORE hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -703,7 +699,6 @@ function ActualPageContent() {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
-      // Always clear the param once processed or if group not found/empty
       router.replace(cleanPathWithHash, { scroll: false });
       console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
 
@@ -817,8 +812,8 @@ function ActualPageContent() {
       toast({
         title: isPristineOrSharedPage && initialSharedData ? "Shared Page Saved!" : "Page Saved!",
         description: isPristineOrSharedPage && initialSharedData
-          ? "The shared page is now part of your dashboard."
-          : "This page is now saved to your dashboard.",
+          ? "The shared page is now part of your home page."
+          : "This page is now saved to your home page.",
       });
     } else {
       toast({
@@ -856,7 +851,7 @@ function ActualPageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview && !currentHash} // Only disable if it's a shared preview, not an unsaved pristine page
+                disabled={isReadOnlyPreview && !currentHash} 
                 data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
@@ -875,8 +870,8 @@ function ActualPageContent() {
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own."
-                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"
+                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own."
+                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home page to make it your own!"
                   }
                 </p>
                 <Button
@@ -890,10 +885,10 @@ function ActualPageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
+                  {initialSharedData ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Saving will create a new copy in your dashboard, allowing you to edit and manage it.
+                  Saving will create a new copy on your home page, allowing you to edit and manage it.
                 </p>
                  {!initialSharedData && (
                   <Button variant="outline" size="lg" onClick={() => { /* TODO: Implement or connect tour start */ }} className="mt-4 ml-3">
@@ -931,7 +926,7 @@ function ActualPageContent() {
                       onDeleteGroup={handleDeleteGroup}
                       onOpenGroup={handleOpenGroup}
                       onOpenInNewWindow={handleOpenGroupInNewWindow}
-                      isReadOnlyPreview={false} // This will be false for unsaved pristine pages too
+                      isReadOnlyPreview={false} 
                     />
                   </SortableContext>
                 </DndContext>
@@ -981,12 +976,11 @@ function PageSkeletonForSuspense() {
   );
 }
 
-// This component determines whether to render the Dashboard or a ZipGroup page
 function PageRouter() {
   const searchParams = useSearchParams();
-  const pathname = usePathname(); // Will always be '/' for this page
+  const pathname = usePathname(); 
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
-  const [clientSideCheckDone, setClientSideCheckDone] = useState(false); // To ensure effect runs once for this
+  const [clientSideCheckDone, setClientSideCheckDone] = useState(false); 
 
   useEffect(() => {
     const determineMode = () => {
@@ -1008,14 +1002,11 @@ function PageRouter() {
     };
 
     determineMode();
-
-    // Listen to hash changes to switch between dashboard and page view
     window.addEventListener('hashchange', determineMode);
-
     return () => {
       window.removeEventListener('hashchange', determineMode);
     };
-  }, [pathname, searchParams]); // searchParams in deps to re-evaluate if ?sharedData appears
+  }, [pathname, searchParams]); 
 
   if (!clientSideCheckDone && renderMode === 'loading') {
     return <PageSkeletonForSuspense />;
@@ -1024,7 +1015,6 @@ function PageRouter() {
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
-  // Default to rendering the page content (for hash URLs or sharedData)
   return <ActualPageContent />;
 }
 

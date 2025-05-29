@@ -33,32 +33,31 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
+import { AppFooter } from "@/components/layout/app-footer";
 
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // Unique key for sample page tour
+
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; 
 
 
-// This is the main content component for the /sample page
 function SamplePageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
-  // Joyride State
   const [runJoyride, setRunJoyride] = useState(false);
   const [joyrideKey, setJoyrideKey] = useState(Date.now());
 
-  // useAppData is initialized by its useEffect based on pathname="/sample"
   const {
     isLoading,
     appData,
     setPageTitle,
     setLinkGroups,
     setTheme,
-    createNewPageFromAppData, // This will save the current appData (sample data + modifications)
-    createNewBlankPageAndRedirect, // For AppHeader's "New Page" button
-    currentHash, // Will be null for the sample page until saved
+    createNewPageFromAppData, 
+    createNewBlankPageAndRedirect, 
+    currentHash, 
     setCustomPrimaryColor,
-  } = useAppData(); // No initialExternalData needed for sample page
+  } = useAppData(); 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -72,7 +71,6 @@ function SamplePageContent() {
     }
   }, [appData?.pageTitle]);
 
-  // Auto-start Joyride for sample page if not taken
   useEffect(() => {
     if (!isLoading && appData && pathname === '/sample' && typeof window !== 'undefined') {
       const tourTaken = localStorage.getItem(JOYRIDE_SAMPLE_TAKEN_KEY);
@@ -161,8 +159,8 @@ function SamplePageContent() {
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="save-sample-page-button"]', // Updated target name
-      content: 'Great! Now you know the basics. Save your customized sample page to keep all your changes and get a unique shareable link!',
+      target: '[data-joyride="save-sample-page-button"]', 
+      content: 'Great! Now you know the basics. Save your customized sample page to your home page to keep all your changes and get a unique shareable link!',
       placement: 'top',
       disableBeacon: true,
     },
@@ -203,7 +201,7 @@ function SamplePageContent() {
 
   const handlePageTitleBlur = () => {
     if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle); // This updates in-memory appData for sample page
+      setPageTitle(localPageTitle); 
     }
   };
 
@@ -216,15 +214,8 @@ function SamplePageContent() {
     }
   };
   
-  const handleOpenNewPageInNewTab = () => {
-    // This should open a new blank page, not necessarily related to current sample data.
-    const newUrl = `${window.location.origin}/`; // This will trigger new page creation on load in new tab
-    window.open(newUrl, '_blank');
-  };
-
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
     toast({ title: "Info", description: "Opening in new window is available for saved pages.", variant: "default" });
-    // This functionality relies on a saved page hash, so it's disabled for unsaved sample.
   };
 
   const sensors = useSensors(
@@ -243,7 +234,7 @@ function SamplePageContent() {
       const newIndex = appData.linkGroups.findIndex((g) => g.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedGroups = arrayMove(appData.linkGroups, oldIndex, newIndex);
-        setLinkGroups(reorderedGroups); // Updates in-memory appData
+        setLinkGroups(reorderedGroups); 
       }
     }
   };
@@ -315,13 +306,13 @@ function SamplePageContent() {
 
   const handleSaveSamplePage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); // This will save the current (potentially modified) sample data
+    const newHash = createNewPageFromAppData(); 
     if (newHash) {
       toast({
         title: "Sample Page Saved!",
-        description: "The sample page is now part of your dashboard and has a unique link.",
+        description: "The sample page is now part of your home page and has a unique link.",
       });
-      localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true'); // Mark tour as taken upon saving sample
+      localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true'); 
     } else {
       toast({
         title: "Save Failed",
@@ -330,7 +321,6 @@ function SamplePageContent() {
       });
     }
     setIsSavingNewPage(false);
-    // router.push(`/#${newHash}`) is handled by createNewPageFromAppData
   };
 
   return (
@@ -338,7 +328,7 @@ function SamplePageContent() {
       appData={appData}
       onThemeChange={setTheme}
     >
-      {typeof window !== 'undefined' && ( // Ensure Joyride only renders on client
+      {typeof window !== 'undefined' && ( 
         <Joyride
           key={joyrideKey}
           steps={samplePageJoyrideSteps}
@@ -367,11 +357,10 @@ function SamplePageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPageAndRedirect} // "New Page" button creates a fresh blank page
+            onCreateNewPage={createNewBlankPageAndRedirect} 
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={false} // Sample page is interactive
-            // Share functionality for sample page might not make sense until saved
+            isReadOnlyPreview={false} 
             onInitiateShare={() => toast({ title: "Info", description: "Save this sample page first to get a shareable link."})}
             canShareCurrentPage={false} 
           />
@@ -388,7 +377,6 @@ function SamplePageContent() {
                 aria-label="Page Title"
                 data-joyride="page-title-input"
               />
-              {/* No last modified for unsaved sample page */}
             </div>
 
             <div
@@ -400,7 +388,7 @@ function SamplePageContent() {
                 Welcome to ZipGroup!
               </h2>
               <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!
+                You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home page to make it your own!
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Button
@@ -414,7 +402,7 @@ function SamplePageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  Save This Sample Page to My Dashboard
+                  Save This Sample Page to My Home Page
                 </Button>
                 <Button variant="outline" size="lg" onClick={startSampleTour}>
                   <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
@@ -442,7 +430,7 @@ function SamplePageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false} // Sample page is interactive
+                    isReadOnlyPreview={false} 
                   />
                 </SortableContext>
               </DndContext>
@@ -454,26 +442,13 @@ function SamplePageContent() {
             onSubmit={handleFormSubmit}
             initialData={editingGroup}
           />
-          <footer className="py-6 text-center text-sm text-muted-foreground">
-            <div className="flex items-center justify-center gap-1 flex-wrap px-2">
-              <span>Powered by </span>
-              <Button
-                variant="link"
-                onClick={handleOpenNewPageInNewTab}
-                className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
-              >
-                ZipGroup.link
-              </Button>
-              {/* No hash displayed for unsaved sample page */}
-            </div>
-          </footer>
+          <AppFooter onCreateNewPage={createNewBlankPageAndRedirect} />
         </div>
       </TooltipProvider>
     </ThemeProvider>
   );
 }
 
-// PageSkeletonForSuspense can be copied from src/app/page.tsx if needed, or use a simpler one.
 function PageSkeletonForSuspense() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
