@@ -42,9 +42,9 @@ export function AppFooter({ onCreateNewPage }: AppFooterProps) {
               gradientUnits="userSpaceOnUse"
               gradientTransform="translate(2.77876 11.3795) rotate(18.6832) scale(29.8025 238.737)"
             >
-              <stop offset="0.0671246" stop-color="#9168C0" />
-              <stop offset="0.342551" stop-color="#5684D1" />
-              <stop offset="0.672076" stop-color="#1BA1E3" />
+              <stop offset="0.0671246" stopColor="#9168C0" />
+              <stop offset="0.342551" stopColor="#5684D1" />
+              <stop offset="0.672076" stopColor="#1BA1E3" />
             </radialGradient>
           </defs>
         </svg>
