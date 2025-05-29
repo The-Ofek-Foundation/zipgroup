@@ -5,7 +5,7 @@ import type { LinkGroup } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import LucideIcon from "@/components/icons/lucide-icon";
-import { ExternalLink, Edit3, Trash2, Link as LinkIcon } from "lucide-react";
+import { ExternalLink, Edit3, Trash2, Link as LinkIcon, AppWindow } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,9 +25,10 @@ interface LinkGroupCardProps {
   onOpen: (group: LinkGroup) => void;
   onEdit: (group: LinkGroup) => void;
   onDelete: (group: LinkGroup) => void;
+  onOpenInNewWindow: (group: LinkGroup) => void; // New prop
 }
 
-export function LinkGroupCard({ group, onOpen, onEdit, onDelete }: LinkGroupCardProps) {
+export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow }: LinkGroupCardProps) {
   const { toast } = useToast();
 
   const handleOpenLinks = () => {
@@ -39,11 +40,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete }: LinkGroupCard
       });
       return;
     }
-    onOpen(group);
+    onOpen(group); // Call the original onOpen logic which includes toast
     group.urls.forEach(url => {
       try {
-        // Check if URL is valid before trying to open
-        new URL(url);
+        new URL(url); // Check if URL is valid
         window.open(url, "_blank");
       } catch (e) {
         console.warn(`Invalid URL skipped: ${url}`);
@@ -58,6 +58,18 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete }: LinkGroupCard
         title: "Links Opening",
         description: `Attempting to open ${group.urls.length} link(s) in new tabs. Check your popup blocker if they don't appear.`,
       });
+  };
+
+  const handleOpenInNewWindowClick = () => {
+    if (group.urls.length === 0) {
+      toast({
+        title: "No URLs",
+        description: "This group has no URLs to open for the new window.",
+        variant: "default",
+      });
+      return;
+    }
+    onOpenInNewWindow(group);
   };
 
   return (
@@ -86,11 +98,30 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete }: LinkGroupCard
           {group.urls.length > 3 && <li className="italic">...and {group.urls.length - 3} more</li>}
         </ul>
       </CardContent>
-      <CardFooter className="flex justify-between pt-4 border-t">
-        <Button onClick={handleOpenLinks} className="w-full mr-2 group" variant="default">
-          <ExternalLink className="mr-2 h-4 w-4 group-hover:animate-pulse" /> Open All
-        </Button>
-        <div className="flex gap-2">
+      <CardFooter className="flex flex-col sm:flex-row justify-between pt-4 border-t gap-2">
+        <div className="flex w-full sm:w-auto gap-2">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button onClick={handleOpenLinks} className="flex-1 group" variant="default">
+                        <ExternalLink className="mr-2 h-4 w-4 group-hover:animate-pulse" /> Open All
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Open all links in new tabs</p>
+                </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button onClick={handleOpenInNewWindowClick} className="flex-1 group" variant="outline">
+                        <AppWindow className="mr-2 h-4 w-4" /> New Window
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Open all links in a new window</p>
+                </TooltipContent>
+            </Tooltip>
+        </div>
+        <div className="flex gap-2 self-end sm:self-center">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">

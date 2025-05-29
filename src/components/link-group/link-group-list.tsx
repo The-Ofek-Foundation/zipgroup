@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
@@ -11,6 +12,7 @@ interface LinkGroupListProps {
   onEditGroup: (group: LinkGroup) => void;
   onDeleteGroup: (group: LinkGroup) => void;
   onAddGroup: () => void;
+  onOpenInNewWindow: (group: LinkGroup) => void; // New prop
 }
 
 export function LinkGroupList({
@@ -19,6 +21,7 @@ export function LinkGroupList({
   onEditGroup,
   onDeleteGroup,
   onAddGroup,
+  onOpenInNewWindow, // Destructure new prop
 }: LinkGroupListProps) {
   if (groups.length === 0) {
     return (
@@ -50,6 +53,7 @@ export function LinkGroupList({
             onOpen={onOpenGroup}
             onEdit={onEditGroup}
             onDelete={onDeleteGroup}
+            onOpenInNewWindow={onOpenInNewWindow} // Pass prop
           />
         ))}
       </div>

@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
@@ -16,10 +16,11 @@ import { ClipboardCopy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // Must match the one in use-app-data.ts
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_";
 
-export default function Home() {
+function PageContent() {
   const {
     isLoading,
     appData,
@@ -32,6 +33,9 @@ export default function Home() {
   } = useAppData();
   
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -73,7 +77,8 @@ export default function Home() {
       return;
     }
     try {
-      const pageUrl = window.location.href;
+      // Construct URL without query parameters
+      const pageUrl = `${window.location.origin}${window.location.pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
         title: "URL Copied!",
@@ -90,13 +95,13 @@ export default function Home() {
   };
 
   const handleOpenNewPageInNewTab = () => {
-    if (!appData) return; // Should not happen if UI is enabled
+    if (!appData) return;
 
     const newHash = generateRandomHash();
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     const newPageData: AppData = {
-      linkGroups: [], // Default empty link groups
+      linkGroups: [],
       pageTitle: `ZipGroup Page ${newHash}`,
       theme: appData.theme || currentSystemTheme,
       customPrimaryColor: appData.customPrimaryColor,
@@ -117,6 +122,73 @@ export default function Home() {
     const newUrl = `${window.location.origin}${window.location.pathname}#${newHash}`;
     window.open(newUrl, '_blank');
   };
+
+  const handleOpenGroupInNewWindow = (groupToOpen: LinkGroup) => {
+    if (!currentHash) {
+      toast({ title: "Error", description: "Current page details not available.", variant: "destructive" });
+      return;
+    }
+    if (groupToOpen.urls.length === 0) {
+      toast({ title: "No URLs", description: "This group has no URLs to open in a new window.", variant: "default" });
+      return;
+    }
+
+    const newWindowUrl = `${window.location.origin}${pathname}#${currentHash}?openGroupInNewWindow=${groupToOpen.id}`;
+    window.open(newWindowUrl, '_blank', 'noopener,noreferrer');
+    
+    toast({
+      title: "Opening in New Window...",
+      description: `A new window will attempt to open links from "${groupToOpen.name}". Check your popup blocker if it doesn't appear.`,
+      duration: 5000,
+    });
+  };
+
+  useEffect(() => {
+    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    if (groupIdToOpen && appData && !isLoading) {
+      const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
+
+      // Clear the query parameter to prevent re-triggering on refresh of the helper tab
+      const newUrl = `${pathname}#${currentHash}`;
+      router.replace(newUrl, { scroll: false }); // Use router.replace to avoid history stack
+
+      if (group && group.urls.length > 0) {
+        toast({
+          title: "Opening Links...",
+          description: `Now opening ${group.urls.length} link(s) from "${group.name}". This tab will become the first link.`,
+          duration: 7000,
+        });
+
+        const [firstUrl, ...otherUrls] = group.urls;
+
+        otherUrls.forEach(url => {
+          try {
+            new URL(url); // Validate URL
+            window.open(url, '_blank');
+          } catch (e) {
+            console.warn(`Invalid URL skipped in new window: ${url}`);
+            toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
+          }
+        });
+        
+        try {
+          new URL(firstUrl); // Validate first URL
+          // Delay slightly to allow toast to be seen and other tabs to initiate opening
+          setTimeout(() => {
+             window.location.replace(firstUrl);
+          }, 1500);
+        } catch (e) {
+           console.error(`Invalid first URL, cannot replace helper tab: ${firstUrl}`);
+           toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain.`, variant: "destructive"});
+        }
+
+      } else if (group && group.urls.length === 0) {
+        toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
+      } else if (group === undefined) { // Group not found
+        toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
+      }
+    }
+  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
 
 
   if (isLoading || !appData) {
@@ -166,7 +238,8 @@ export default function Home() {
   };
 
   const handleOpenGroup = (group: LinkGroup) => {
-    // Logic for opening group (already present)
+    // This function is primarily for the toast in LinkGroupCard, actual opening happens there.
+    // Could be enhanced if central logic for opening is needed here.
   };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
@@ -217,6 +290,7 @@ export default function Home() {
               onEditGroup={handleEditGroup}
               onDeleteGroup={handleDeleteGroup}
               onOpenGroup={handleOpenGroup}
+              onOpenInNewWindow={handleOpenGroupInNewWindow}
             />
           </main>
           <LinkGroupFormDialog
@@ -284,3 +358,43 @@ function CardSkeleton() {
     </div>
   );
 }
+
+// Wrap PageContent with Suspense for useSearchParams
+export default function Home() {
+  return (
+    <Suspense fallback={<PageSkeletonForSuspense />}>
+      <PageContent />
+    </Suspense>
+  );
+}
+
+// A simplified skeleton for the Suspense fallback, as the full one might depend on hooks not yet available
+function PageSkeletonForSuspense() {
+  return (
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
+        <div className="container mx-auto flex h-16 items-center justify-between p-4">
+          <Skeleton className="h-8 w-32" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-9 rounded-md" />
+          </div>
+        </div>
+      </header>
+      <main className="flex-grow container mx-auto p-4 md:p-8">
+        <div className="mb-8 text-center">
+          <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
+        </div>
+        <div className="flex justify-end mb-6">
+            <Skeleton className="h-10 w-40" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
