@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { HomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
+import { HomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react"; // Renamed Home to HomeIcon to avoid conflict with page component name
 import { useToast } from "@/hooks/use-toast";
 import { useAppData } from "@/hooks/use-app-data";
 import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
@@ -37,9 +37,11 @@ import { cn } from "@/lib/utils";
 import type { AppData } from "@/lib/types";
 import { AppFooter } from "@/components/layout/app-footer";
 
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Keep consistent with useAppData's page prefix for now
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-// DASHBOARD_THEME_MODE_KEY and DASHBOARD_CUSTOM_COLOR_KEY are managed by useDashboardTheme hook
+const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
+const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // Key used in sample/page.tsx
 
 interface StoredPage {
   hash: string;
@@ -163,7 +165,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                       variant="destructive"
                       size="sm"
                       aria-label={`Delete page ${page.title}`}
-                      onPointerDown={stopPropagationForEvents} // Kept for dnd-kit activation constraint
+                      // No onClick needed here for opening, DialogTrigger handles it
+                      // No onPointerDown needed here if dnd-kit activation constraint is used
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
@@ -202,7 +205,6 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  // Note: createNewBlankPageAndRedirect is called via AppFooter, which gets it from PageRouter -> Home -> useAppData
   const { createNewBlankPageAndRedirect } = useAppData();
 
 
@@ -232,21 +234,33 @@ export function DashboardView() {
         initialStoredOrder = [];
       }
 
+      const excludedKeys = [
+        DASHBOARD_ORDER_KEY,
+        DASHBOARD_THEME_MODE_KEY,
+        DASHBOARD_CUSTOM_COLOR_KEY,
+        JOYRIDE_SAMPLE_TAKEN_KEY // Explicitly exclude the Joyride key
+      ];
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        // Check against dashboard specific keys directly to avoid parsing them as AppData
         if (
           key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
-          key !== DASHBOARD_ORDER_KEY &&
-          key !== 'linkwarp_dashboard_theme_mode' && // literal key from useDashboardTheme
-          key !== 'linkwarp_dashboard_custom_primary_color' // literal key from useDashboardTheme
+          !excludedKeys.includes(key) // Check against the excluded keys list
         ) {
           try {
             const storedData = localStorage.getItem(key);
             if (storedData) {
               const parsedData = JSON.parse(storedData) as AppData;
               const hash = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
+
+              // Check if the parsed data is a valid AppData object (e.g., by checking essential properties)
+              // This helps filter out keys that match the prefix but aren't actual page data.
+              if (typeof parsedData.pageTitle !== 'string' || !Array.isArray(parsedData.linkGroups)) {
+                console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
+                continue;
+              }
+
 
               if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `ZipGroup Page ${hash}`) {
                 localStorage.removeItem(key);
@@ -294,9 +308,9 @@ export function DashboardView() {
             if (a.lastModified && b.lastModified) {
                 return b.lastModified - a.lastModified;
             }
-            if (a.lastModified) return -1; // Pages with lastModified come first
-            if (b.lastModified) return 1;  // Pages with lastModified come first
-            return a.title.localeCompare(b.title); // Fallback to title sort
+            if (a.lastModified) return -1;
+            if (b.lastModified) return 1;
+            return a.title.localeCompare(b.title);
         });
 
       setPages([...finalPages, ...remainingPages]);
@@ -374,7 +388,7 @@ export function DashboardView() {
 
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
-        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}#${hash}`;
 
         await navigator.clipboard.writeText(shareUrl);
         toast({
@@ -525,5 +539,3 @@ export function DashboardView() {
     </TooltipProvider>
   );
 }
-
-    
