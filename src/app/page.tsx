@@ -5,7 +5,7 @@ import type React from "react";
 import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
-import { AppFooter } from "@/components/layout/app-footer"; // Import the new footer
+import { AppFooter } from "@/components/layout/app-footer"; 
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
 import type { LinkGroup, AppData } from "@/lib/types";
@@ -262,7 +262,7 @@ function DashboardView() {
               const parsedData = JSON.parse(storedData) as AppData;
               const hash = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
 
-              if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
+              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `ZipGroup Page ${hash}`) {
                 localStorage.removeItem(key);
                 initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
                 continue;
@@ -454,7 +454,7 @@ function DashboardView() {
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
             <div className="flex items-center gap-2">
               <HomeIcon className="mr-2 h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-semibold text-primary">ZipGroup Home</h1>
+              <h1 className="text-2xl font-semibold text-primary">ZipGroup</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={handleCreateNewPage} size="sm">
@@ -550,7 +550,7 @@ function ActualPageContent() {
           setInitialSharedData(parsedData);
           toast({
             title: "Shared Page Loaded",
-            description: "You're viewing a shared page. Click 'Save This Page' to add it to your home page.",
+            description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
             duration: 7000,
           });
           const currentUrl = new URL(window.location.href);
@@ -812,8 +812,8 @@ function ActualPageContent() {
       toast({
         title: isPristineOrSharedPage && initialSharedData ? "Shared Page Saved!" : "Page Saved!",
         description: isPristineOrSharedPage && initialSharedData
-          ? "The shared page is now part of your home page."
-          : "This page is now saved to your home page.",
+          ? "The shared page is now part of your home."
+          : "This page is now saved to your home.",
       });
     } else {
       toast({
@@ -851,7 +851,7 @@ function ActualPageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview && !currentHash} 
+                disabled={isReadOnlyPreview} 
                 data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
@@ -870,8 +870,8 @@ function ActualPageContent() {
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own."
-                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home page to make it your own!"
+                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home to make it your own."
+                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home to make it your own!"
                   }
                 </p>
                 <Button
@@ -885,14 +885,14 @@ function ActualPageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
+                  {initialSharedData ? "Save This Shared Page to My Home" : "Save This Page to My Home"}
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Saving will create a new copy on your home page, allowing you to edit and manage it.
+                  Saving will create a new copy on your home, allowing you to edit and manage it.
                 </p>
                  {!initialSharedData && (
-                  <Button variant="outline" size="lg" onClick={() => { /* TODO: Implement or connect tour start */ }} className="mt-4 ml-3">
-                     <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
+                  <Button variant="outline" size="lg" asChild className="mt-4 ml-3">
+                     <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
                 )}
               </div>
@@ -914,10 +914,12 @@ function ActualPageContent() {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEndLinkGroups}
+                  disabled={isReadOnlyPreview}
                 >
                   <SortableContext
                     items={appData.linkGroups.map(g => g.id)}
                     strategy={rectSortingStrategy}
+                    disabled={isReadOnlyPreview}
                   >
                     <LinkGroupList
                       groups={appData.linkGroups}
@@ -972,6 +974,7 @@ function PageSkeletonForSuspense() {
           <Skeleton className="h-5 w-2/3 mx-auto" />
         </div>
       </main>
+      <AppFooter onCreateNewPage={() => {}} /> {/* Dummy function for skeleton */}
     </div>
   );
 }
@@ -985,7 +988,7 @@ function PageRouter() {
   useEffect(() => {
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        setRenderMode('loading');
+        setRenderMode('loading'); // Should not happen if Suspense handles initial client-side
         return;
       }
 
@@ -1001,20 +1004,26 @@ function PageRouter() {
       setClientSideCheckDone(true);
     };
 
-    determineMode();
+    determineMode(); // Initial check
+    
+    // Listen for hash changes (e.g., navigating from #hash to /)
     window.addEventListener('hashchange', determineMode);
+    
+    // No need to listen for popstate for query param changes if relying on Next's searchParams re-evaluation
+    
     return () => {
       window.removeEventListener('hashchange', determineMode);
     };
-  }, [pathname, searchParams]); 
+  }, [pathname, searchParams]); // searchParams from useSearchParams hook will trigger re-evaluation
 
-  if (!clientSideCheckDone && renderMode === 'loading') {
+  if (!clientSideCheckDone || renderMode === 'loading') {
     return <PageSkeletonForSuspense />;
   }
 
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
+  // renderMode === 'page' or is still 'loading' but clientSideCheckDone is true (meaning initial non-dashboard state)
   return <ActualPageContent />;
 }
 
@@ -1026,3 +1035,5 @@ export default function Home() {
     </Suspense>
   );
 }
+
+    
