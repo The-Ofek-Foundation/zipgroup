@@ -6,8 +6,13 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppFooter } from "@/components/layout/app-footer";
 import { useAppData } from "@/hooks/use-app-data";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle } from "lucide-react";
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle, ClipboardCopy } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { format } from "date-fns";
+import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
 // Direct static imports instead of React.lazy
 import { DashboardView } from "@/components/dashboard/dashboard-view";
@@ -40,7 +45,6 @@ function PageSkeletonForSuspense() {
         </div>
       </main>
       <AppFooter onCreateNewPage={() => {
-        // Dummy function for skeleton, actual logic is elsewhere
         console.log("Create new page from skeleton footer clicked (dummy)");
       }} />
     </div>
@@ -64,21 +68,20 @@ function PageRouter() {
     updateHashStateFromLocation(); // Initial check
     window.addEventListener('hashchange', updateHashStateFromLocation);
     return () => window.removeEventListener('hashchange', updateHashStateFromLocation);
-  }, []);
+  }, []); // Empty dependency array: runs once on mount to set up listener
 
 
   useEffect(() => {
     // Effect to determine renderMode based on URL state (hash, sharedData)
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        setRenderMode('loading');
+        setRenderMode('loading'); // Should ideally not happen if window check is above
         return;
       }
 
-      const currentPath = pathname;
-      const hash = window.location.hash.substring(1).split('?')[0];
-      // Directly use searchParams from the hook, which is reactive
-      const sharedDataParam = searchParams.get('sharedData');
+      const currentPath = pathname; // from usePathname() - this is reactive
+      const hash = window.location.hash.substring(1).split('?')[0]; // direct read
+      const sharedDataParam = searchParams.get('sharedData'); // from useSearchParams() - this is reactive
 
       if (currentPath === '/' && !hash && !sharedDataParam) {
         setRenderMode('dashboard');
@@ -100,7 +103,7 @@ function PageRouter() {
     return () => {
       window.removeEventListener('hashchange', handleHashChangeForMode);
     };
-  }, [pathname, searchParams]); // Dependencies: pathname and searchParams ensure this re-runs if query params change
+  }, [pathname, searchParams]); // Dependencies: pathname and searchParams ensure this re-runs if query params or path change
 
 
   if (renderMode === 'loading') {
@@ -117,10 +120,11 @@ function PageRouter() {
   
   // renderMode must be 'page'
   // Generate a key that changes when transitioning from shared/pristine to a hashed page
+  // or from one hash to another.
   const sharedDataParamValue = searchParams.get('sharedData');
   const pageKey = urlHashForKeystr || (sharedDataParamValue ? `shared-${sharedDataParamValue.substring(0,10)}` : 'new-unsaved-page');
   
-  return <ActualPageContent key={pageKey} />;
+  return <ActualPageContent key={pageKey} routeHash={urlHashForKeystr} />;
 }
 
 

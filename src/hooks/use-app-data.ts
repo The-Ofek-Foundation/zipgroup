@@ -7,10 +7,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { generateRandomHash } from "@/lib/utils";
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
-const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order"; // Used by dashboard-view
-const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode'; // Used by this hook
-const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color'; // Used by this hook
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // Used by sample page
+const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
+const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
+const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
 
 
 const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor' | 'lastModified'> = {
@@ -19,7 +18,7 @@ const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryCo
 
 export const defaultSampleAppData: Omit<AppData, 'lastModified'> = {
   pageTitle: "Explore ZipGroup - Sample Page",
-  theme: 'light', // Default, can be overridden by system preference in hook
+  theme: 'light', 
   customPrimaryColor: undefined,
   linkGroups: [
     {
@@ -52,13 +51,15 @@ export const defaultSampleAppData: Omit<AppData, 'lastModified'> = {
 };
 
 
-export function useAppData(initialExternalData?: Partial<AppData>) {
+export function useAppData(initialExternalData?: Partial<AppData>, explicitRouteHash?: string | null) {
   const [appData, setAppData] = useState<AppData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // currentHash is the hash this instance of useAppData believes it's managing.
+  // It's primarily set by _resolveAndSetAppData based on explicitRouteHash or initial load.
   const [currentHash, setCurrentHash] = useState<string | null>(null);
 
   const router = useRouter();
-  const pathname = usePathname(); // Get current pathname
+  const pathname = usePathname(); 
 
   const currentHashRef = useRef<string | null>(null);
   useEffect(() => {
@@ -69,11 +70,13 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     if (!hash) return;
     try {
       const finalData = { ...dataToSave, lastModified: Date.now() };
+      const isSamplePageContext = pathname === '/sample' && !initialExternalData && !currentHashRef.current;
+
       if (
+        !isSamplePageContext && // Don't auto-delete the sample page if it becomes "empty" before first save
         finalData.linkGroups && finalData.linkGroups.length === 0 &&
-        finalData.pageTitle === "New ZipGroup Page" && // Only remove truly blank new pages
-        !finalData.customPrimaryColor &&
-        (pathname !== '/sample' && !initialExternalData) // Don't auto-delete sample or shared previews if they become "empty"
+        finalData.pageTitle === "New ZipGroup Page" && 
+        !finalData.customPrimaryColor
       ) {
         localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
         const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
@@ -88,7 +91,7 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     } catch (error) {
       console.error("Failed to save or remove data from local storage:", error);
     }
-  }, [pathname, initialExternalData]);
+  }, [pathname, initialExternalData]); // Dependencies of saveData
 
   const loadData = useCallback((hash: string): AppData | null => {
     if (!hash) return null;
@@ -99,13 +102,12 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
         const parsedData = JSON.parse(storedData) as AppData;
         return {
           ...parsedData,
-          theme: parsedData.theme || systemTheme, // Ensure theme is set
+          theme: parsedData.theme || systemTheme, 
         };
       } else {
-        // If no data for hash, create a new default page for this hash
         const newDefaultPageData: AppData = {
             ...defaultAppDataBase,
-            pageTitle: "New ZipGroup Page", // Default title for unknown hash
+            pageTitle: "New ZipGroup Page", 
             theme: systemTheme,
             customPrimaryColor: undefined,
             lastModified: Date.now()
@@ -119,65 +121,71 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     return null;
   }, [saveData]);
 
-  const _resolveAndSetAppData = useCallback((currentPath: string, hashFromUrl: string | null, externalData?: Partial<AppData>) => {
+
+  const _resolveAndSetAppData = useCallback((path: string, hash: string | null, sharedData?: Partial<AppData>) => {
     setIsLoading(true);
     const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
-    if (currentPath === '/sample' && !hashFromUrl && !externalData) {
+    if (path === '/sample' && !hash && !sharedData) {
       const samplePageData: AppData = {
         ...defaultSampleAppData,
         theme: defaultSampleAppData.theme || systemTheme,
-      } as AppData;
+      } as AppData; // lastModified will be undefined for unsaved sample
       setAppData(samplePageData);
-      setCurrentHash(null);
-    } else if (externalData && !hashFromUrl) {
+      setCurrentHash(null); // Sample page doesn't have a hash until saved
+    } else if (sharedData && !hash) { // A shared link preview
       const sharedPageData: AppData = {
         ...defaultAppDataBase,
-        pageTitle: externalData.pageTitle || "ZipGroup Shared Page",
-        linkGroups: externalData.linkGroups || [],
-        theme: externalData.theme || systemTheme,
-        customPrimaryColor: externalData.customPrimaryColor,
-      } as AppData; // lastModified will be undefined until saved
+        pageTitle: sharedData.pageTitle || "ZipGroup Shared Page",
+        linkGroups: sharedData.linkGroups || [],
+        theme: sharedData.theme || systemTheme,
+        customPrimaryColor: sharedData.customPrimaryColor,
+        // lastModified will be undefined for unsaved shared preview
+      };
       setAppData(sharedPageData);
-      setCurrentHash(null);
-    } else if (hashFromUrl) {
-      const loaded = loadData(hashFromUrl);
-      setAppData(loaded); // loadData ensures theme is set
-      setCurrentHash(hashFromUrl);
-    } else {
-      // This case is typically for when PageRouter decides to show Dashboard
-      // or an uninitialized state before redirection.
-      setAppData(null);
+      setCurrentHash(null); // Shared preview doesn't have a hash for the current user yet
+    } else if (hash) { // A page with a hash
+      const loaded = loadData(hash);
+      setAppData(loaded); 
+      setCurrentHash(hash);
+    } else { 
+      // This case is for when PageRouter decides to show Dashboard (no hash, no sharedData, not /sample)
+      // Or an uninitialized state for a truly new page before redirection.
+      // For ActualPageContent, if it ever gets here without a hash/sharedData, it should be loading the dashboard.
+      // useAppData when called from DashboardView will also hit this if no specific hash passed.
+      setAppData(null); // No specific page data to load for dashboard context or a truly blank new page
       setCurrentHash(null);
     }
     setIsLoading(false);
-  }, [loadData]);
+  }, [loadData]); // Dependencies of _resolveAndSetAppData
 
 
   useEffect(() => {
-    if (typeof window === 'undefined') return; // Ensure this only runs client-side
-
-    const initialHashValue = window.location.hash.substring(1).split('?')[0] || null;
-    _resolveAndSetAppData(pathname, initialHashValue, initialExternalData);
+    // This effect now primarily relies on explicitRouteHash from props to determine its data.
+    // The handleHashChange listener inside this effect will update based on window.location.hash for other navigations.
+    _resolveAndSetAppData(pathname, explicitRouteHash, initialExternalData);
 
     const handleHashChange = () => {
       if (typeof window === 'undefined') return;
       const newHashValueWithParams = window.location.hash.substring(1);
       const newHashValue = newHashValueWithParams.split('?')[0] || null;
-      
-      // For hash changes, initialExternalData is not relevant.
-      // We also need to pass the current pathname.
+      // When hash changes, initialExternalData is not relevant for _resolveAndSetAppData.
+      // It should re-resolve based on the new hash or lack thereof.
+      // Pass window.location.pathname in case the path also changed, though less common with hash nav.
       _resolveAndSetAppData(window.location.pathname, newHashValue, undefined);
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [pathname, initialExternalData, _resolveAndSetAppData]); // pathname and initialExternalData for initial load
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [pathname, explicitRouteHash, initialExternalData, _resolveAndSetAppData]);
 
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
-      const isUnsavedContext = currentHashRef.current === null;
+      // currentHashRef.current is the hash this useAppData instance is managing or null if it's an unsaved state
+      const isUnsavedContext = currentHashRef.current === null; 
       const currentSystemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
       let baseData: AppData;
@@ -185,24 +193,25 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
         baseData = prevData;
       } else if (pathname === '/sample' && isUnsavedContext) {
         baseData = { ...defaultSampleAppData, theme: defaultSampleAppData.theme || currentSystemTheme } as AppData;
-      } else if (isUnsavedContext && initialExternalData) {
+      } else if (isUnsavedContext && initialExternalData) { // Shared page context
          baseData = {
             ...defaultAppDataBase,
             pageTitle: initialExternalData.pageTitle || "ZipGroup Shared Page",
             linkGroups: initialExternalData.linkGroups || [],
             theme: initialExternalData.theme || currentSystemTheme,
             customPrimaryColor: initialExternalData.customPrimaryColor,
-         } as AppData;
-      } else {
+         } as AppData; // lastModified is undefined
+      } else { // Fallback for a new page scenario if somehow prevData is null but not sample/shared
         baseData = { ...defaultAppDataBase, pageTitle: "New ZipGroup Page", theme: currentSystemTheme, lastModified: undefined } as AppData;
       }
 
       const newLocalData: AppData = { ...baseData, ...updates };
 
-      if (isUnsavedContext) {
-        return { ...newLocalData, lastModified: baseData.lastModified };
+      if (isUnsavedContext) { // If it's sample, shared preview, or a truly new blank page not yet saved
+        return { ...newLocalData, lastModified: baseData.lastModified }; // Keep lastModified as is (likely undefined)
       }
 
+      // Only save to localStorage if there's a currentHash (i.e., it's a saved page)
       const newDataToSave = { ...newLocalData, lastModified: Date.now() };
       saveData(currentHashRef.current!, newDataToSave);
       return newDataToSave;
@@ -227,22 +236,25 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
   }, [updateAppData]);
 
   const createNewPageFromAppData = useCallback(() => {
-    if (!appData) return null;
+    if (!appData) return null; // Should not happen if called from UI where appData is present
 
     const newHash = generateRandomHash();
-    // When saving from sample or shared, use the current appData
-    // Title will be what's in appData (e.g., "Explore ZipGroup - Sample Page" or user-edited)
-    const dataToSave: AppData = { ...appData, lastModified: Date.now() };
-
+    // Use the current state of appData (which could be from sample, shared, or user-edited pristine)
+    const dataToSave: AppData = { 
+      ...appData, 
+      pageTitle: appData.pageTitle, // Retain the current title (e.g. "Explore ZipGroup - Sample Page")
+      lastModified: Date.now() 
+    };
+    
     saveData(newHash, dataToSave);
-    router.push('/#' + newHash); // Navigates to the new hash on the root page
+    router.push('/#' + newHash); // Navigate to the new hash on the root page
+    // Clear sharedData param if it was part of the original URL (less common now with new PageRouter logic)
+    // This router.push to a hash naturally clears query params if not included.
     return newHash;
   }, [appData, saveData, router]);
 
 
   const createNewBlankPageAndRedirect = useCallback(() => {
-    const newHash = generateRandomHash();
-
     let dashboardThemeMode: AppData['theme'] = 'light';
     let dashboardCustomColor: string | undefined = undefined;
 
@@ -257,9 +269,10 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
         }
     }
 
+    const newHash = generateRandomHash();
     const newPageData: AppData = {
-      ...defaultAppDataBase,
-      pageTitle: "New ZipGroup Page", // Always "New ZipGroup Page" for truly blank pages
+      pageTitle: "New ZipGroup Page", // Always "New ZipGroup Page"
+      linkGroups: [],
       theme: dashboardThemeMode,
       customPrimaryColor: dashboardCustomColor,
       lastModified: Date.now(),
@@ -268,7 +281,7 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
 
     router.push(`/#${newHash}`);
     return newHash;
-  }, [saveData, router]);
+  }, [saveData, router]); // saveData and router are dependencies
 
   const deleteCurrentPageAndRedirect = useCallback(() => {
     if (currentHashRef.current) {
@@ -281,12 +294,12 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
           order = order.filter(h => h !== currentHashRef.current);
           localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(order));
         }
-        router.push('/');
+        router.push('/'); // Navigate to home/dashboard
       } catch (error) {
         console.error("Failed to delete page or update dashboard order:", error);
       }
     }
-  }, [router]);
+  }, [router]); // router is a dependency
 
 
   return {
@@ -295,9 +308,9 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     setPageTitle,
     setLinkGroups,
     setTheme,
-    currentHash,
-    createNewPageFromAppData,
-    createNewBlankPageAndRedirect,
+    currentHash, // The hash this instance is managing
+    createNewPageFromAppData, // For saving sample/shared or user-modified pristine state
+    createNewBlankPageAndRedirect, // For creating a truly blank new page
     setCustomPrimaryColor,
     deleteCurrentPageAndRedirect,
   };

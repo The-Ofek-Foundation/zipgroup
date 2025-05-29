@@ -14,7 +14,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { Clock, Info, Save, Loader2, HelpCircle, Trash2 } from "lucide-react";
+import { Clock, Info, Save, Loader2, HelpCircle, Trash2, ClipboardCopy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { format } from 'date-fns';
@@ -35,8 +35,13 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { normalizeUrl } from "@/lib/utils";
+import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
-export function ActualPageContent() {
+interface ActualPageContentProps {
+  routeHash: string | null; // New prop to receive hash from PageRouter
+}
+
+export function ActualPageContent({ routeHash }: ActualPageContentProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,13 +60,13 @@ export function ActualPageContent() {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData);
+          setInitialSharedData(parsedData); // This will be passed to useAppData
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
             duration: 7000,
           });
-          // Do not clean the URL here. Let sharedData param persist until save or navigation.
+          // DO NOT clean the URL here; let sharedData param persist until save or navigation.
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -82,11 +87,11 @@ export function ActualPageContent() {
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    currentHash,
+    currentHash, // This is the hash managed by useAppData, reflecting its internal state
     setCustomPrimaryColor,
     createNewBlankPageAndRedirect,
     deleteCurrentPageAndRedirect,
-  } = useAppData(initialSharedData); 
+  } = useAppData(initialSharedData, routeHash); 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -95,9 +100,12 @@ export function ActualPageContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 
-  const isPristineUnsavedPage = !currentHash && !initialSharedData; // True for a brand new page (not /sample) before first save
-  const isSharedPagePreview = !currentHash && !!initialSharedData;  // True for a shared link preview before saving
-  const isReadOnlyPreview = isSharedPagePreview; // Only shared previews are truly read-only for editing content
+  // This is a preview of a shared link, not yet saved by the current user
+  const isSharedPagePreview = !currentHash && !!initialSharedData; 
+  // This is a brand new page template, before first save (currently /sample takes this role)
+  const isPristineUnsavedPage = !currentHash && !initialSharedData && pathname !== '/sample';
+  
+  const isReadOnlyPreview = isSharedPagePreview; // Only shared previews are read-only for editing content
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -157,6 +165,21 @@ export function ActualPageContent() {
     }
   };
 
+  const handleCopyPageUrl = async () => {
+    if (!currentHash) {
+      toast({ title: "Cannot Copy URL", description: "Page has no unique URL yet. Save it first.", variant: "default" });
+      return;
+    }
+    const urlToCopy = `${window.location.origin}/#${currentHash}`;
+    try {
+      await navigator.clipboard.writeText(urlToCopy);
+      toast({ title: "Page URL Copied!", description: "The URL has been copied to your clipboard." });
+    } catch (err) {
+      toast({ title: "Copy Failed", description: "Could not copy the URL.", variant: "destructive" });
+      console.error("Failed to copy page URL: ", err);
+    }
+  };
+
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
      if (!currentHash) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
@@ -200,9 +223,10 @@ export function ActualPageContent() {
   useEffect(() => {
     const currentUrlSearchParams = new URLSearchParams(window.location.search);
     const groupIdToOpen = currentUrlSearchParams.get('openGroupInNewWindow');
-    const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+    // Use routeHash passed from PageRouter as the definitive hash for this page instance
+    const urlToClearParamsFrom = routeHash ? `${pathname}#${routeHash}` : pathname;
 
-    if (groupIdToOpen && appData && !isLoading && currentHash) {
+    if (groupIdToOpen && appData && !isLoading && routeHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
@@ -251,7 +275,7 @@ export function ActualPageContent() {
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
       }
     }
- }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
+ }, [searchParams, appData, isLoading, routeHash, pathname, router, toast]); // Use routeHash
 
 
   const sensors = useSensors(
@@ -276,7 +300,7 @@ export function ActualPageContent() {
   };
 
   if (isLoading || !appData || !sharedDataProcessed) { 
-    return null; 
+    return <PageContentSpinner />; 
   }
 
   const handleAddGroup = () => {
@@ -290,6 +314,7 @@ export function ActualPageContent() {
   };
 
   const handleDeleteGroup = (groupToDelete: LinkGroup) => {
+    if (!appData) return;
     const updatedGroups = appData.linkGroups.filter(g => g.id !== groupToDelete.id);
     setLinkGroups(updatedGroups);
     toast({ title: "Group Deleted", description: `"${groupToDelete.name}" has been removed.` });
@@ -298,6 +323,7 @@ export function ActualPageContent() {
   const handleOpenGroup = (group: LinkGroup) => { /* For toast in LinkGroupCard */ };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
+    if (!appData) return;
     const existingGroupIndex = appData.linkGroups.findIndex(g => g.id === groupData.id);
     let updatedGroups;
     if (existingGroupIndex > -1) {
@@ -314,8 +340,8 @@ export function ActualPageContent() {
 
   const handleSaveCurrentDataAsNewPage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData();
-    if (newHash) {
+    const newHashResult = createNewPageFromAppData(); // This function now handles redirection
+    if (newHashResult) {
       toast({
         title: isSharedPagePreview ? "Shared Page Saved!" : "Page Saved!",
         description: isSharedPagePreview
@@ -352,12 +378,12 @@ export function ActualPageContent() {
             onSetCustomPrimaryColor={setCustomPrimaryColor}
             isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
+            canShareCurrentPage={!!currentHash && !isReadOnlyPreview} // Use currentHash from useAppData
             showHomePageLink={true}
             showSamplePageLink={false} 
             showShareButton={true}
             onInitiateDelete={() => setIsDeleteDialogOpen(true)}
-            canDeleteCurrentPage={!!currentHash && !isReadOnlyPreview}
+            canDeleteCurrentPage={!!currentHash && !isReadOnlyPreview} // Use currentHash from useAppData
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -373,44 +399,39 @@ export function ActualPageContent() {
                 disabled={isReadOnlyPreview}
                 data-joyride="page-title-input"
               />
-              {currentHash && appData.lastModified && (
-                <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
+              {currentHash && appData.lastModified && ( // Use currentHash from useAppData
+                <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
                   <Clock className="mr-1.5 h-3 w-3" />
                   Last modified: {format(new Date(appData.lastModified), "MMM d, yyyy, h:mm a")}
-                </p>
+                  <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} className="ml-1.5 h-5 w-5 p-0.5 text-muted-foreground hover:text-primary">
+                    <ClipboardCopy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
             </div>
 
-            {(isPristineUnsavedPage || isSharedPagePreview) && ( 
+            {isSharedPagePreview && ( 
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow" data-joyride="interactive-sample-info">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                  <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {isSharedPagePreview ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
+                  Previewing Shared Page
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                  {isSharedPagePreview
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own."
-                    : "Customize your new page's title, theme, and link groups below. When you're ready, save it to start using your new ZipGroup page!"
-                  }
+                  This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own.
                 </p>
                 <Button
                   onClick={handleSaveCurrentDataAsNewPage}
                   size="lg"
                   disabled={isSavingNewPage}
-                  data-joyride={isSharedPagePreview ? "save-shared-page-button" : "save-pristine-page-button"}
+                  data-joyride="save-shared-page-button"
                 >
                   {isSavingNewPage ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {isSharedPagePreview ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
+                  Save This Shared Page to My Home Page
                 </Button>
-                 {isPristineUnsavedPage && pathname !=='/sample' && ( 
-                  <Button variant="outline" size="lg" asChild className="mt-4 sm:mt-0 sm:ml-3">
-                     <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
-                  </Button>
-                )}
               </div>
             )}
 
