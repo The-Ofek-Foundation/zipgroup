@@ -168,17 +168,21 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      setItems(currentItems => {
-        const oldIndex = currentItems.findIndex(item => item.id === active.id);
-        const newIndex = currentItems.findIndex(item => item.id === over.id);
+      // Get current indices from the `items` state directly
+      const oldIndex = items.findIndex(item => item.id === active.id);
+      const newIndex = items.findIndex(item => item.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        // Create the new array based on the current `items` state
+        // Ensure to operate on a copy if arrayMove doesn't guarantee a new array
+        const reorderedItems = arrayMove([...items], oldIndex, newIndex);
         
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
-          onChange(reorderedItems.map(item => item.value)); 
-          return reorderedItems; 
-        }
-        return currentItems; 
-      });
+        // First, update the local state
+        setItems(reorderedItems);
+        
+        // Then, notify the parent (React Hook Form Controller)
+        onChange(reorderedItems.map(item => item.value));
+      }
     }
   }
 
