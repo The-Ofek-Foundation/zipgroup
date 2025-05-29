@@ -74,6 +74,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
     onOpenInNewWindow(group);
   };
 
+  const stopPropagation = (e: React.MouseEvent | React.PointerEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <Card className={cn(
       "flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300",
@@ -109,6 +113,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 <TooltipTrigger asChild>
                     <Button
                         onClick={handleOpenLinks}
+                        onPointerDown={stopPropagation}
                         className="justify-center group overflow-hidden"
                         variant="default"
                     >
@@ -124,6 +129,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 <TooltipTrigger asChild>
                     <Button
                         onClick={handleOpenInNewWindowClick}
+                        onPointerDown={stopPropagation}
                         className="justify-center group overflow-hidden"
                         variant="outline"
                     >
@@ -139,7 +145,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
         <div className="flex flex-row items-center gap-x-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">
+              <Button variant="outline" size="icon" onClick={() => onEdit(group)} onPointerDown={stopPropagation} aria-label="Edit group">
                 <Edit3 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -152,7 +158,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="icon" aria-label="Delete group">
+                  <Button variant="destructive" size="icon" onPointerDown={stopPropagation} aria-label="Delete group">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -179,3 +185,4 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
     </Card>
   );
 }
+

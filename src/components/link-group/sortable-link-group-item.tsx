@@ -38,7 +38,7 @@ export function SortableLinkGroupItem({ group, onOpen, onEdit, onDelete, onOpenI
       {...listeners}
       className={cn(
         "touch-manipulation", // For better mobile drag experience
-        isDragging ? "z-50" : "z-0" // Ensure dragged item is on top
+        isDragging ? "cursor-grabbing z-50" : "cursor-grab z-0" // Ensure dragged item is on top and set cursor
       )}
     >
       <LinkGroupCard
@@ -52,3 +52,4 @@ export function SortableLinkGroupItem({ group, onOpen, onEdit, onDelete, onOpenI
     </div>
   );
 }
+
