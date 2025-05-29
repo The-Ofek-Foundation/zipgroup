@@ -1,4 +1,3 @@
-
 "use client";
 
 import type React from "react";
@@ -54,6 +53,9 @@ import { hexToHslValues } from "@/lib/color-utils";
 
 const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
+const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
+const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
+
 
 interface StoredPage {
   hash: string;
@@ -249,8 +251,8 @@ function DashboardView() {
           key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
           key !== DASHBOARD_ORDER_KEY &&
-          key !== 'linkwarp_dashboard_theme_mode' &&
-          key !== 'linkwarp_dashboard_custom_primary_color'
+          key !== DASHBOARD_THEME_MODE_KEY &&
+          key !== DASHBOARD_CUSTOM_COLOR_KEY
         ) {
           try {
             const storedData = localStorage.getItem(key);
@@ -444,78 +446,80 @@ function DashboardView() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 items-center justify-between p-4">
-          <div className="flex items-center gap-2">
-            <HomeIcon className="mr-2 h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-semibold text-primary">ZipGroup Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handleCreateNewPage} size="sm">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create New Page
-            </Button>
-             <Button variant="outline" size="sm" asChild>
-              <Link href="/sample">
-                <BookOpenCheck className="mr-2 h-4 w-4" />
-                View Sample
-              </Link>
-            </Button>
-            <CustomColorPicker
-              currentCustomColor={customPrimaryColor}
-              onSetCustomColor={setDashboardCustomPrimaryColor}
-            />
-            <ThemeSwitcher
-              theme={themeMode}
-              setTheme={setDashboardThemeMode}
-            />
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-grow container mx-auto p-4 md:p-8">
-        {pages.length === 0 ? (
-          <div className="text-center py-16">
-            <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
-            <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
-            <p className="mt-2 text-lg text-muted-foreground">
-              Looks like your dashboard is empty. Let's create your first page!
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-              <Button onClick={handleCreateNewPage} size="lg">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Create Your First Page
+    <TooltipProvider delayDuration={100}>
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
+        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
+          <div className="container mx-auto flex h-16 items-center justify-between p-4">
+            <div className="flex items-center gap-2">
+              <HomeIcon className="mr-2 h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-semibold text-primary">ZipGroup Dashboard</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCreateNewPage} size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create New Page
               </Button>
-               <Button variant="outline" size="lg" asChild>
+               <Button variant="outline" size="sm" asChild>
                 <Link href="/sample">
-                  <BookOpenCheck className="mr-2 h-5 w-5" />
-                  Explore Sample Page
+                  <BookOpenCheck className="mr-2 h-4 w-4" />
+                  View Sample
                 </Link>
               </Button>
+              <CustomColorPicker
+                currentCustomColor={customPrimaryColor}
+                onSetCustomColor={setDashboardCustomPrimaryColor}
+              />
+              <ThemeSwitcher
+                theme={themeMode}
+                setTheme={setDashboardThemeMode}
+              />
             </div>
           </div>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
-            <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {pages.map(page => (
-                  <SortablePageCardItem
-                    key={page.hash}
-                    page={page}
-                    onDelete={handleDeletePage}
-                    onShare={handleSharePage}
-                  />
-                ))}
+        </header>
+
+        <main className="flex-grow container mx-auto p-4 md:p-8">
+          {pages.length === 0 ? (
+            <div className="text-center py-16">
+              <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
+              <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
+              <p className="mt-2 text-lg text-muted-foreground">
+                Looks like your dashboard is empty. Let's create your first page!
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
+                <Button onClick={handleCreateNewPage} size="lg">
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  Create Your First Page
+                </Button>
+                 <Button variant="outline" size="lg" asChild>
+                  <Link href="/sample">
+                    <BookOpenCheck className="mr-2 h-5 w-5" />
+                    Explore Sample Page
+                  </Link>
+                </Button>
               </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </main>
-      <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-        Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
-      </footer>
-    </div>
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
+              <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {pages.map(page => (
+                    <SortablePageCardItem
+                      key={page.hash}
+                      page={page}
+                      onDelete={handleDeletePage}
+                      onShare={handleSharePage}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </main>
+        <footer className="py-6 text-center text-sm text-muted-foreground border-t">
+          Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
+        </footer>
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -527,11 +531,17 @@ function ActualPageContent() {
 
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
   const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
+  const currentHashFromUrlRef = useRef<string | null>(null);
+
 
   useEffect(() => {
+     if (typeof window !== 'undefined') {
+      currentHashFromUrlRef.current = window.location.hash.substring(1).split('?')[0];
+    }
+
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const sharedDataParam = searchParams.get('sharedData');
-      if (sharedDataParam && !window.location.hash) {
+      if (sharedDataParam && !currentHashFromUrlRef.current) { // Only process if no hash
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
@@ -541,10 +551,7 @@ function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.delete('sharedData');
-          router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
-
+          // Clean URL only after hook has processed data, handled in useAppData
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -649,6 +656,7 @@ function ActualPageContent() {
       return;
     }
 
+    // Construct URL with query param BEFORE hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -682,9 +690,12 @@ function ActualPageContent() {
   useEffect(() => {
     const queryGroupIdToOpen = searchParams.get('openGroupInNewWindow');
     const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
+    const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
     if (queryGroupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === queryGroupIdToOpen);
+      console.log("[OpenInNewWindowEffect] Processing Group ID:", queryGroupIdToOpen, "Found group:", group);
+
 
       if (group && group.urls.length > 0) {
         toast({
@@ -693,9 +704,13 @@ function ActualPageContent() {
           duration: 10000,
         });
 
-        router.replace(cleanPathWithHash, { scroll: false });
+        router.replace(urlToClearParamsFrom, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
+
 
         const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
+        console.log("[OpenInNewWindowEffect] First URL:", firstUrlFull, "Other URLs:", otherUrlsFull);
+
 
         otherUrlsFull.forEach(url => {
           try {
@@ -704,6 +719,8 @@ function ActualPageContent() {
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
               toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check settings.`, variant: "default", duration: 7000 });
+            } else {
+              console.log("[OpenInNewWindowEffect] Opened:", url);
             }
           } catch (e) {
             console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
@@ -714,6 +731,7 @@ function ActualPageContent() {
         setTimeout(() => {
           try {
             new URL(firstUrlFull);
+            console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
@@ -722,10 +740,12 @@ function ActualPageContent() {
         }, 250);
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        router.replace(cleanPathWithHash, { scroll: false });
+        router.replace(urlToClearParamsFrom, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Group empty, cleared URL param, current URL:", window.location.href);
       } else if (!group) {
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${queryGroupIdToOpen}".`, variant: "destructive" });
-        router.replace(cleanPathWithHash, { scroll: false });
+        router.replace(urlToClearParamsFrom, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Group not found, cleared URL param, current URL:", window.location.href);
       }
     }
  }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
@@ -975,6 +995,7 @@ function PageSkeletonForSuspense() {
   );
 }
 
+// This component determines whether to render the Dashboard or a ZipGroup page
 function PageRouter() {
   const searchParams = useSearchParams();
   const pathname = usePathname(); // Will always be '/' for this page
@@ -984,42 +1005,38 @@ function PageRouter() {
   useEffect(() => {
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        // Should not really hit this in useEffect, but good for safety
-        setRenderMode('loading'); // Or some server-compatible default if needed
+        setRenderMode('loading'); 
         return;
       }
 
       const hash = window.location.hash.substring(1).split('?')[0];
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
-      const sharedData = currentUrlSearchParams.get('sharedData') || searchParams.get('sharedData'); // Prioritize direct URL then hook
+      const sharedData = currentUrlSearchParams.get('sharedData') || searchParams.get('sharedData');
 
       if (pathname === '/' && !hash && !sharedData) {
         setRenderMode('dashboard');
       } else {
         setRenderMode('page');
       }
-      setClientSideCheckDone(true); // Mark that client-side determination is done
+      setClientSideCheckDone(true);
     };
 
-    determineMode(); // Initial check on mount and on searchParams/pathname change
+    determineMode(); 
 
-    // Listen for hash changes specifically
     window.addEventListener('hashchange', determineMode);
 
     return () => {
       window.removeEventListener('hashchange', determineMode);
     };
-  }, [pathname, searchParams]); // Re-run when Next.js Router updates pathname or searchParams
+  }, [pathname, searchParams]); 
 
   if (!clientSideCheckDone && renderMode === 'loading') {
-    // Show skeleton until the first client-side check is complete
     return <PageSkeletonForSuspense />;
   }
 
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
-  // renderMode === 'page' or 'loading' (if clientSideCheckDone is true but mode still loading, though unlikely with current logic)
   return <ActualPageContent />;
 }
 
@@ -1031,3 +1048,4 @@ export default function Home() {
     </Suspense>
   );
 }
+
