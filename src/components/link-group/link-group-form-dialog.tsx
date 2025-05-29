@@ -97,7 +97,7 @@ export function LinkGroupFormDialog({
             {initialData ? "Modify your" : "Add a new"} link group to quickly open sets of URLs.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 py-4">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
           <div data-joyride="group-form-name-input">
             <Label htmlFor="name">Group Name</Label>
             <Input id="name" {...register("name")} className="mt-1" />
