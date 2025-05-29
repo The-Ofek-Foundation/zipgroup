@@ -13,7 +13,8 @@ import { useAppData } from "@/hooks/use-app-data";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Clock, Info, Save, Loader2, HelpCircle } from "lucide-react";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { Clock, Info, Save, Loader2, HelpCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { format } from 'date-fns';
@@ -46,24 +47,21 @@ export function ActualPageContent() {
 
 
   useEffect(() => {
-    // This effect specifically handles the initial parsing of 'sharedData' from URL
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
       const sharedDataParam = currentUrlSearchParams.get('sharedData');
 
-      if (sharedDataParam && !window.location.hash) { // Only process if no hash (true shared link)
+      if (sharedDataParam && !window.location.hash) { 
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData); // This will be passed to useAppData
+          setInitialSharedData(parsedData);
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
             duration: 7000,
           });
-          // DO NOT Clean the URL here. Let the sharedData param persist
-          // until the user saves or navigates away.
-          // The router.push in createNewPageFromAppData will navigate to a clean /#hash URL.
+          // Do not clean the URL here. Let sharedData param persist until save or navigation.
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -71,12 +69,11 @@ export function ActualPageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-           // Also do not clean URL on error, user might want to copy/debug it.
         }
       }
-      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found, or if an error occurred.
+      setSharedDataProcessed(true); 
     }
-  }, [searchParams, router, pathname, toast, sharedDataProcessed]); // Depends on searchParams
+  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
   const {
     isLoading,
@@ -88,15 +85,19 @@ export function ActualPageContent() {
     currentHash,
     setCustomPrimaryColor,
     createNewBlankPageAndRedirect,
-  } = useAppData(initialSharedData); // Pass initialSharedData here
+    deleteCurrentPageAndRedirect,
+  } = useAppData(initialSharedData); 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
   const [localPageTitle, setLocalPageTitle] = useState("");
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const isPristineOrSharedPage = !currentHash && !!appData; // True if appData is loaded but there's no hash
-  const isReadOnlyPreview = isPristineOrSharedPage && !!initialSharedData; // Only shared previews are read-only
+
+  const isPristineUnsavedPage = !currentHash && !initialSharedData; // True for a brand new page (not /sample) before first save
+  const isSharedPagePreview = !currentHash && !!initialSharedData;  // True for a shared link preview before saving
+  const isReadOnlyPreview = isSharedPagePreview; // Only shared previews are truly read-only for editing content
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -138,8 +139,7 @@ export function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      const sharePathname = pathname === '/sample' ? '/' : pathname;
-      const shareUrl = `${window.location.origin}${sharePathname}?sharedData=${encodedJson}`;
+      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`; // No hash in share URL
 
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -198,14 +198,14 @@ export function ActualPageContent() {
   };
 
   useEffect(() => {
-    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    const currentUrlSearchParams = new URLSearchParams(window.location.search);
+    const groupIdToOpen = currentUrlSearchParams.get('openGroupInNewWindow');
     const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
-      // Clear URL param first
       router.replace(urlToClearParamsFrom, { scroll: false });
       console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
 
@@ -221,7 +221,7 @@ export function ActualPageContent() {
 
         otherUrlsFull.forEach(url => {
           try {
-            new URL(url); // Validate
+            new URL(url); 
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
@@ -237,14 +237,14 @@ export function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrlFull); // Validate
+            new URL(firstUrlFull); 
             console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
           }
-        }, 250); // Delay to allow other tabs to open
+        }, 250); 
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
       } else if (!group) {
@@ -275,8 +275,8 @@ export function ActualPageContent() {
     }
   };
 
-  if (isLoading || !appData || !sharedDataProcessed) { // Wait for sharedData to be processed
-    return null; // Or your PageSkeletonForSuspense, but null might be better to avoid flashes
+  if (isLoading || !appData || !sharedDataProcessed) { 
+    return null; 
   }
 
   const handleAddGroup = () => {
@@ -317,8 +317,8 @@ export function ActualPageContent() {
     const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
-        title: initialSharedData ? "Shared Page Saved!" : "Page Saved!",
-        description: initialSharedData
+        title: isSharedPagePreview ? "Shared Page Saved!" : "Page Saved!",
+        description: isSharedPagePreview
           ? "The shared page is now part of your home page."
           : "This page is now saved to your home page.",
       });
@@ -330,6 +330,13 @@ export function ActualPageContent() {
       });
     }
     setIsSavingNewPage(false);
+  };
+
+  const handleDeletePageConfirmed = () => {
+    if (deleteCurrentPageAndRedirect) {
+      deleteCurrentPageAndRedirect();
+    }
+    setIsDeleteDialogOpen(false);
   };
 
   return (
@@ -347,8 +354,10 @@ export function ActualPageContent() {
             onInitiateShare={handleShareCurrentPage}
             canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
             showHomePageLink={true}
-            showSamplePageLink={false} // Not shown on actual page content view
+            showSamplePageLink={false} 
             showShareButton={true}
+            onInitiateDelete={() => setIsDeleteDialogOpen(true)}
+            canDeleteCurrentPage={!!currentHash && !isReadOnlyPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -372,14 +381,14 @@ export function ActualPageContent() {
               )}
             </div>
 
-            {isPristineOrSharedPage && ( // This block is for unsaved pages (new blank, or shared preview)
+            {(isPristineUnsavedPage || isSharedPagePreview) && ( 
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow" data-joyride="interactive-sample-info">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                  <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!" /* This branch will be less common now as / shows dashboard */}
+                  {isSharedPagePreview ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                  {initialSharedData
+                  {isSharedPagePreview
                     ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home page to make it your own."
                     : "Customize your new page's title, theme, and link groups below. When you're ready, save it to start using your new ZipGroup page!"
                   }
@@ -388,16 +397,16 @@ export function ActualPageContent() {
                   onClick={handleSaveCurrentDataAsNewPage}
                   size="lg"
                   disabled={isSavingNewPage}
-                  data-joyride={initialSharedData ? "save-shared-page-button" : "save-pristine-page-button"}
+                  data-joyride={isSharedPagePreview ? "save-shared-page-button" : "save-pristine-page-button"}
                 >
                   {isSavingNewPage ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
+                  {isSharedPagePreview ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
                 </Button>
-                 {!initialSharedData && pathname !=='/sample' && ( // Show tour button for truly new pages not sample/shared
+                 {isPristineUnsavedPage && pathname !=='/sample' && ( 
                   <Button variant="outline" size="lg" asChild className="mt-4 sm:mt-0 sm:ml-3">
                      <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
@@ -405,16 +414,15 @@ export function ActualPageContent() {
               </div>
             )}
 
-            {/* LinkGroupList is now always rendered if appData exists, even for shared/pristine */}
             {appData && (
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup} // Will be disabled by isReadOnlyPreview inside LinkGroupList
-                  onEditGroup={handleEditGroup} // Will be disabled by isReadOnlyPreview in LinkGroupCard
-                  onDeleteGroup={handleDeleteGroup} // Will be disabled by isReadOnlyPreview in LinkGroupCard
+                  onAddGroup={handleAddGroup} 
+                  onEditGroup={handleEditGroup} 
+                  onDeleteGroup={handleDeleteGroup} 
                   onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow} // Will be disabled by isReadOnlyPreview in LinkGroupCard
+                  onOpenInNewWindow={handleOpenGroupInNewWindow} 
                   isReadOnlyPreview={true}
                 />
               ) : (
@@ -422,12 +430,12 @@ export function ActualPageContent() {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEndLinkGroups}
-                  disabled={isReadOnlyPreview} // Should be false here
+                  disabled={isReadOnlyPreview} 
                 >
                   <SortableContext
                     items={appData.linkGroups.map(g => g.id)}
                     strategy={rectSortingStrategy}
-                    disabled={isReadOnlyPreview} // Should be false here
+                    disabled={isReadOnlyPreview} 
                   >
                     <LinkGroupList
                       groups={appData.linkGroups}
@@ -449,10 +457,22 @@ export function ActualPageContent() {
             onSubmit={handleFormSubmit}
             initialData={editingGroup}
           />
+          <ConfirmationDialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+            title="Delete Page?"
+            description={
+              <>
+                Are you sure you want to delete the page "<strong>{appData?.pageTitle || 'this page'}</strong>"? This action cannot be undone.
+              </>
+            }
+            onConfirm={handleDeletePageConfirmed}
+            confirmText="Delete Page"
+            confirmVariant="destructive"
+          />
           <AppFooter onCreateNewPage={createNewBlankPageAndRedirect} />
         </div>
       </TooltipProvider>
     </ThemeProvider>
   );
 }
-

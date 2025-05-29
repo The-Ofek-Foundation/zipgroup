@@ -5,7 +5,7 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, HomeIcon, Share2, PlusCircle, BookOpenCheck } from "lucide-react";
+import { Zap, HomeIcon as PageHomeIcon, Share2, PlusCircle, BookOpenCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePathname } from 'next/navigation';
@@ -29,6 +29,9 @@ interface AppHeaderProps {
   
   isReadOnlyPreview?: boolean;
   joyrideProps?: Record<string, unknown>; 
+
+  onInitiateDelete?: () => void;
+  canDeleteCurrentPage?: boolean;
 }
 
 export function AppHeader({
@@ -44,6 +47,8 @@ export function AppHeader({
   canShareCurrentPage = false,
   isReadOnlyPreview = false,
   joyrideProps = {},
+  onInitiateDelete,
+  canDeleteCurrentPage = false,
 }: AppHeaderProps) {
   const pathname = usePathname();
 
@@ -64,7 +69,7 @@ export function AppHeader({
                 <Button asChild variant="outline" size="sm">
                   <Link href="/">
                     <span className="flex items-center gap-1.5">
-                      <HomeIcon className="h-4 w-4"/>
+                      <PageHomeIcon className="h-4 w-4"/>
                       <span className="hidden md:inline">Home</span>
                     </span>
                   </Link>
@@ -82,7 +87,10 @@ export function AppHeader({
                 variant="outline"
                 onClick={onCreateNewPage}
                 size="sm"
-                disabled={isReadOnlyPreview && pathname !== '/sample' && pathname !== '/'} 
+                // New Page button is disabled on shared previews, but enabled on /sample 
+                // because clicking it from /sample effectively "saves" the sample.
+                // It should also be enabled on normal pages.
+                disabled={isReadOnlyPreview && pathname !== '/sample'} 
                 aria-label="New Page"
               >
                 <PlusCircle className="h-4 w-4 md:mr-2" />
@@ -90,7 +98,7 @@ export function AppHeader({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Create New Page</p>
+              <p>New Page</p>
             </TooltipContent>
           </Tooltip>
 
@@ -130,6 +138,26 @@ export function AppHeader({
             </Tooltip>
           )}
 
+          {onInitiateDelete && canDeleteCurrentPage && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onInitiateDelete}
+                  aria-label="Delete this page"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete this page</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+
           <CustomColorPicker
             currentCustomColor={customPrimaryColor}
             onSetCustomColor={onSetCustomPrimaryColor}
@@ -137,8 +165,8 @@ export function AppHeader({
             joyrideProps={{ "data-joyride": "custom-color-picker" }}
           />
           <ThemeSwitcher
-            theme={themeMode} // Pass themeMode if available
-            setTheme={onSetThemeMode} // Pass onSetThemeMode if available
+            theme={themeMode} 
+            setTheme={onSetThemeMode} 
             disabled={isReadOnlyPreview}
             joyrideProps={{ "data-joyride": "theme-switcher" }}
           />
