@@ -1,9 +1,12 @@
+
 "use client";
 
 import type React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, XCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 interface DynamicUrlInputProps {
   urls: string[];
@@ -37,16 +40,23 @@ export function DynamicUrlInput({ urls, onChange }: DynamicUrlInputProps) {
             onChange={(e) => handleUrlChange(index, e.target.value)}
             className="flex-grow"
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeUrlField(index)}
-            aria-label="Remove URL"
-            disabled={urls.length <= 1 && index === 0} 
-          >
-            <XCircle className="h-5 w-5 text-destructive" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeUrlField(index)}
+                aria-label="Remove URL"
+                disabled={urls.length <= 1 && index === 0} 
+              >
+                <XCircle className="h-5 w-5 text-destructive" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Remove URL</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       ))}
       <Button

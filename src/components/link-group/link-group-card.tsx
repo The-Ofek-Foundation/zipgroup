@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
@@ -17,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface LinkGroupCardProps {
   group: LinkGroup;
@@ -89,15 +91,30 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete }: LinkGroupCard
           <ExternalLink className="mr-2 h-4 w-4 group-hover:animate-pulse" /> Open All
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">
-            <Edit3 className="h-4 w-4" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon" aria-label="Delete group">
-                <Trash2 className="h-4 w-4" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={() => onEdit(group)} aria-label="Edit group">
+                <Edit3 className="h-4 w-4" />
               </Button>
-            </AlertDialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Edit group</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="icon" aria-label="Delete group">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete group</p>
+              </TooltipContent>
+            </Tooltip>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>

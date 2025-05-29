@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"; // For loading state
 import { Button } from "@/components/ui/button"; // For copy button
 import { ClipboardCopy } from "lucide-react"; // For copy icon
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Home() {
   const {
@@ -132,39 +133,48 @@ export default function Home() {
       initialTheme={appData.theme} 
       onThemeChange={setTheme}
     >
-      <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
-        <AppHeader
-          pageTitle={appData.pageTitle}
-          onPageTitleChange={setPageTitle}
-          onCreateNewPage={createNewPage}
-        />
-        <main className="flex-grow container mx-auto p-4 md:p-8">
-          <LinkGroupList
-            groups={appData.linkGroups}
-            onAddGroup={handleAddGroup}
-            onEditGroup={handleEditGroup}
-            onDeleteGroup={handleDeleteGroup}
-            onOpenGroup={handleOpenGroup}
+      <TooltipProvider delayDuration={100}>
+        <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+          <AppHeader
+            pageTitle={appData.pageTitle}
+            onPageTitleChange={setPageTitle}
+            onCreateNewPage={createNewPage}
           />
-        </main>
-        <LinkGroupFormDialog
-          isOpen={isFormOpen}
-          onClose={() => setIsFormOpen(false)}
-          onSubmit={handleFormSubmit}
-          initialData={editingGroup}
-        />
-         <footer className="py-6 text-center text-sm text-muted-foreground">
-          <div className="flex items-center justify-center gap-2">
-            <span>Powered by LinkWarp. Your current page hash:</span>
-            <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
-            {currentHash && (
-              <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} aria-label="Copy page URL" className="h-6 w-6">
-                <ClipboardCopy className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </footer>
-      </div>
+          <main className="flex-grow container mx-auto p-4 md:p-8">
+            <LinkGroupList
+              groups={appData.linkGroups}
+              onAddGroup={handleAddGroup}
+              onEditGroup={handleEditGroup}
+              onDeleteGroup={handleDeleteGroup}
+              onOpenGroup={handleOpenGroup}
+            />
+          </main>
+          <LinkGroupFormDialog
+            isOpen={isFormOpen}
+            onClose={() => setIsFormOpen(false)}
+            onSubmit={handleFormSubmit}
+            initialData={editingGroup}
+          />
+          <footer className="py-6 text-center text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-2">
+              <span>Powered by LinkWarp. Your current page hash:</span>
+              <code className="font-mono bg-muted p-1 rounded text-xs">{currentHash || 'loading...'}</code>
+              {currentHash && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleCopyPageUrl} aria-label="Copy page URL" className="h-6 w-6">
+                      <ClipboardCopy className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Copy page URL</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </footer>
+        </div>
+      </TooltipProvider>
     </ThemeProvider>
   );
 }
@@ -195,4 +205,3 @@ function CardSkeleton() {
     </div>
   );
 }
-

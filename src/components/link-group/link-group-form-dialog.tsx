@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
@@ -21,6 +22,7 @@ import LucideIcon from "@/components/icons/lucide-icon";
 import { Loader2, Wand2 } from "lucide-react";
 import { suggestIcon } from "@/ai/flows/suggest-icon"; // AI function
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const linkGroupSchema = z.object({
@@ -148,9 +150,16 @@ export function LinkGroupFormDialog({
             <Label htmlFor="icon">Icon Name (Lucide)</Label>
             <div className="flex items-center gap-2">
               <Input id="icon" {...register("icon")} placeholder="e.g., Briefcase, Home, Settings" />
-              <Button type="button" variant="outline" size="icon" onClick={handleSuggestIcon} disabled={isSuggestingIcon || !groupName} aria-label="Suggest Icon">
-                {isSuggestingIcon ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="outline" size="icon" onClick={handleSuggestIcon} disabled={isSuggestingIcon || !groupName} aria-label="Suggest Icon">
+                    {isSuggestingIcon ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Suggest icon using AI</p>
+                </TooltipContent>
+              </Tooltip>
               <div className="p-2 border rounded-md bg-muted">
                 <LucideIcon name={iconName || "HelpCircle"} size={24} />
               </div>
