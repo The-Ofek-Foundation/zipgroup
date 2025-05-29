@@ -147,67 +147,76 @@ function PageContent() {
 
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    // This effect runs in the newly opened "helper" window/tab.
-    // It needs appData to be loaded for the currentHash of this helper tab.
+    console.log('[OpenInNewWindowEffect] Triggered. GroupID:', groupIdToOpen, 'isLoading:', isLoading, 'appData:', appData, 'currentHash:', currentHash);
+
     if (groupIdToOpen && appData && !isLoading && currentHash) {
+      console.log('[OpenInNewWindowEffect] Conditions met. Processing group ID:', groupIdToOpen);
+      console.log('[OpenInNewWindowEffect] Link groups available:', appData.linkGroups);
+
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      const urlToClearParamsFrom = `${pathname}#${currentHash}`; // URL for the helper tab once params are cleared.
+      console.log('[OpenInNewWindowEffect] Found group:', group);
+
+      const urlToClearParamsFrom = `${pathname}#${currentHash}`; 
 
       if (group && group.urls.length > 0) {
+        console.log('[OpenInNewWindowEffect] Group has URLs. URLs:', group.urls);
         toast({
           title: `Opening "${group.name}"...`,
           description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. Please check it if links do not appear. This tab will become the first link.`,
-          duration: 10000, // Longer duration for this important message
+          duration: 10000, 
         });
 
         const [firstUrl, ...otherUrls] = group.urls;
-        let openedSuccessfullyCount = 0;
+        console.log('[OpenInNewWindowEffect] First URL:', firstUrl, 'Other URLs:', otherUrls);
 
         otherUrls.forEach(url => {
           try {
-            new URL(url); // Validate URL
+            new URL(url); 
+            console.log(`[OpenInNewWindowEffect] Attempting to open (other): ${url}`);
             const newTab = window.open(url, '_blank');
             if (newTab) {
-              openedSuccessfullyCount++;
+              console.log(`[OpenInNewWindowEffect] Successfully initiated opening for: ${url}`);
             } else {
-              // This branch is often not hit directly due to silent blocking by browsers.
-              // The main toast serves as a general warning.
-              console.warn(`Popup blocker may have prevented opening: ${url}`);
+              console.warn(`[OpenInNewWindowEffect] window.open returned falsy for: ${url}. Popup blocker might still be active or other issue.`);
               toast({ title: "Popup Might Be Active", description: `Could not open: ${url}. Check popup blocker.`, variant: "destructive", duration: 6000 });
             }
           } catch (e) {
-            console.warn(`Invalid URL skipped in new window: ${url}`);
+            console.warn(`[OpenInNewWindowEffect] Invalid URL skipped in new window: ${url}`, e);
             toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
           }
         });
         
-        // Now handle the first URL and clean up the helper tab's URL
         try {
-          new URL(firstUrl); // Validate first URL
-          // IMPORTANT: Clear the query parameter *before* attempting to navigate the current (helper) tab.
-          // If navigation succeeds, this tab is gone. If it fails, the URL is clean for subsequent interaction.
+          new URL(firstUrl); 
+          console.log(`[OpenInNewWindowEffect] Clearing params, new helper URL: ${urlToClearParamsFrom}`);
           router.replace(urlToClearParamsFrom, { scroll: false });
           
-          // Attempt to navigate the current tab to the first URL after a short delay.
-          // This delay gives a moment for other tabs to initiate opening and for router.replace to settle.
+          console.log(`[OpenInNewWindowEffect] Attempting to navigate current tab to first URL after delay: ${firstUrl}`);
           setTimeout(() => {
+             console.log(`[OpenInNewWindowEffect] Timeout: Navigating to ${firstUrl}`);
              window.location.replace(firstUrl);
-             // If window.location.replace fails to navigate away (e.g., due to about:blank issues or other errors),
-             // the tab will remain on the (now cleaned) URL.
-          }, 250); // Short delay
+          }, 250); 
         } catch (e) {
-           console.error(`Invalid first URL, cannot replace helper tab: ${firstUrl}`);
+           console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
-           // Ensure param is cleared if firstUrl is bad.
+           console.log(`[OpenInNewWindowEffect] Clearing params due to bad first URL, new helper URL: ${urlToClearParamsFrom}`);
            router.replace(urlToClearParamsFrom, { scroll: false }); 
         }
       } else if (group && group.urls.length === 0) {
+        console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
+        console.log(`[OpenInNewWindowEffect] Clearing params, group has no URLs, new helper URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       } else if (group === undefined) { 
+        console.log('[OpenInNewWindowEffect] Group not found for ID:', groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
+        console.log(`[OpenInNewWindowEffect] Clearing params, group not found, new helper URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       }
+    } else {
+        if (groupIdToOpen) {
+            console.log('[OpenInNewWindowEffect] Conditions not met yet. groupIdToOpen:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
+        }
     }
   }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
 
@@ -417,5 +426,6 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
+    
 
     
