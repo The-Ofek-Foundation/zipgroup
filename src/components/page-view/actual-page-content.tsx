@@ -276,10 +276,6 @@ export function ActualPageContent() {
   };
 
   if (isLoading || !appData || !sharedDataProcessed) {
-    // This skeleton is now defined in page.tsx, if this component is used by PageRouter,
-    // the router's Suspense fallback will handle it.
-    // For standalone use (if any), a simple loader would be needed here.
-    // Assuming PageRouter handles the skeleton for now.
     return null; 
   }
 
@@ -350,6 +346,9 @@ export function ActualPageContent() {
             isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
             canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
+            showHomePageLink={true}
+            showSamplePageLink={false}
+            showShareButton={true}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -398,10 +397,7 @@ export function ActualPageContent() {
                   )}
                   {initialSharedData ? "Save This Shared Page to My Home" : "Save This Page to My Home"}
                 </Button>
-                <p className="text-sm text-muted-foreground mt-4">
-                  Saving will create a new copy on your home, allowing you to edit and manage it.
-                </p>
-                 {!initialSharedData && ( // Only show tour button for pristine sample, not shared.
+                 {!initialSharedData && ( 
                   <Button variant="outline" size="lg" asChild className="mt-4 ml-3">
                      <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
@@ -413,11 +409,11 @@ export function ActualPageContent() {
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
-                  onEditGroup={handleEditGroup} // Will be disabled by LinkGroupCard
-                  onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupCard
+                  onAddGroup={handleAddGroup} 
+                  onEditGroup={handleEditGroup} 
+                  onDeleteGroup={handleDeleteGroup} 
                   onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow} // Will be disabled by LinkGroupCard
+                  onOpenInNewWindow={handleOpenGroupInNewWindow} 
                   isReadOnlyPreview={true}
                 />
               ) : (

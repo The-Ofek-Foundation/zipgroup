@@ -7,14 +7,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DialogTrigger } from "@/components/ui/dialog"; // Keep for Tooltip + Button trigger pattern
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
+import { FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppData } from "@/hooks/use-app-data";
 import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
-import { ThemeSwitcher } from "@/components/theme/theme-switcher";
-import { CustomColorPicker } from "@/components/theme/custom-color-picker";
 import { hexToHslValues } from "@/lib/color-utils";
 import { format } from 'date-fns';
 import {
@@ -37,6 +34,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import type { AppData } from "@/lib/types";
 import { AppFooter } from "@/components/layout/app-footer";
+import { AppHeader } from "@/components/layout/app-header"; // Import AppHeader
 
 const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
@@ -76,7 +74,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
   };
 
   const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
-     if (e.type === "pointerdown") { // Be specific to pointerdown for drag
+     if (e.type === "pointerdown") { 
       e.stopPropagation();
     }
   };
@@ -171,7 +169,6 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                     size="sm"
                     aria-label={`Delete page ${page.title}`}
                     onClick={() => setIsDeleteDialogOpen(true)}
-                    // onPointerDown is NOT stopped here to allow dnd-kit activation constraints to work
                   >
                     <Trash2 className="mr-2 h-4 w-4" /> Delete
                   </Button>
@@ -203,12 +200,12 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData();
+  const { createNewBlankPageAndRedirect } = useAppData(); // Get this from useAppData
 
 
   const {
-    themeMode,
-    customPrimaryColor,
+    themeMode: dashboardThemeMode, // Renamed to avoid conflict
+    customPrimaryColor: dashboardCustomPrimaryColor, // Renamed
     isLoading: isThemeLoading,
     setDashboardThemeMode,
     setDashboardCustomPrimaryColor
@@ -324,10 +321,10 @@ export function DashboardView() {
 
     const root = document.documentElement;
     root.classList.remove("light", "dark");
-    root.classList.add(themeMode);
+    root.classList.add(dashboardThemeMode);
 
-    if (customPrimaryColor) {
-      const hslValues = hexToHslValues(customPrimaryColor);
+    if (dashboardCustomPrimaryColor) {
+      const hslValues = hexToHslValues(dashboardCustomPrimaryColor);
       if (hslValues) {
         const hslString = `${hslValues.h} ${hslValues.s}% ${hslValues.l}%`;
         root.style.setProperty('--primary', hslString);
@@ -344,7 +341,7 @@ export function DashboardView() {
       root.style.removeProperty('--accent');
       root.style.removeProperty('--ring');
     }
-  }, [themeMode, customPrimaryColor, isThemeLoading]);
+  }, [dashboardThemeMode, dashboardCustomPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
     createNewBlankPageAndRedirect();
@@ -445,52 +442,16 @@ export function DashboardView() {
   return (
     <TooltipProvider delayDuration={100}>
       <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-          <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <div className="flex items-center gap-2">
-              <PageHomeIcon className="mr-2 h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-semibold text-primary">
-                <span className="inline sm:hidden">ZG</span>
-                <span className="hidden sm:inline">ZipGroup</span>
-              </h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={handleCreateNewPage} size="sm" aria-label="New Page">
-                    <PlusCircle className="h-4 w-4 md:mr-2" />
-                    <span className="hidden md:inline">New Page</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Create New Page</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" asChild aria-label="View Sample Page">
-                    <Link href="/sample">
-                      <BookOpenCheck className="h-4 w-4 md:mr-2" />
-                       <span className="hidden md:inline">View Sample</span>
-                    </Link>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                   <p>View Sample Page</p>
-                </TooltipContent>
-              </Tooltip>
-              <CustomColorPicker
-                currentCustomColor={customPrimaryColor}
-                onSetCustomColor={setDashboardCustomPrimaryColor}
-              />
-              <ThemeSwitcher
-                theme={themeMode}
-                setTheme={setDashboardThemeMode}
-              />
-            </div>
-          </div>
-        </header>
-
+        <AppHeader
+            onCreateNewPage={handleCreateNewPage}
+            customPrimaryColor={dashboardCustomPrimaryColor}
+            onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
+            themeMode={dashboardThemeMode}
+            onSetThemeMode={setDashboardThemeMode}
+            showHomePageLink={false} 
+            showSamplePageLink={true}
+            showShareButton={false}
+        />
         <main className="flex-grow container mx-auto p-4 md:p-8">
           {pages.length === 0 ? (
             <div className="text-center py-16">
@@ -501,12 +462,12 @@ export function DashboardView() {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
                 <Button onClick={handleCreateNewPage} size="lg">
-                  <PlusCircle className="mr-2 h-5 w-5" />
+                  <PlusCircle className="mr-2 h-5 w-5" /> 
                   Create Your First Page
                 </Button>
                  <Button variant="outline" size="lg" asChild>
                   <Link href="/sample">
-                    <BookOpenCheck className="mr-2 h-5 w-5" />
+                    <BookOpenCheck className="mr-2 h-5 w-5" /> 
                     Explore Sample Page
                   </Link>
                 </Button>
