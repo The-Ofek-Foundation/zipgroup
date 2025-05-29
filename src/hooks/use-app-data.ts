@@ -2,7 +2,7 @@
 "use client";
 
 import type { AppData, LinkGroup } from "@/lib/types";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // Added useRef
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'; // Using navigation hooks for App Router
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
@@ -23,6 +23,12 @@ export function useAppData() {
   
   const router = useRouter();
   const pathname = usePathname();
+
+  // Moved currentHashRef and its useEffect to the top level
+  const currentHashRef = useRef<string | null>(currentHash);
+  useEffect(() => {
+    currentHashRef.current = currentHash;
+  }, [currentHash]);
 
   const loadData = useCallback((hash: string): AppData | null => {
     try {
@@ -61,6 +67,8 @@ export function useAppData() {
       if (loaded) {
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
+        // If hash exists but no data, it might be a new page with a pre-set hash or corrupted data.
+        // We can choose to initialize it or treat as an error. Here, we initialize.
         hashToUse = initialHash;
         dataToLoad = { ...defaultAppData, theme: systemTheme, customPrimaryColor: undefined };
         saveData(hashToUse, dataToLoad);
@@ -73,36 +81,31 @@ export function useAppData() {
     }
     
     setAppData(dataToLoad);
-    setCurrentHash(hashToUse);
+    setCurrentHash(hashToUse); // This will update currentHashRef via its own useEffect
     setIsLoading(false);
 
     const handleHashChange = () => {
       const newHash = window.location.hash.substring(1);
-      if (newHash && newHash !== currentHashRef.current) { // Use ref for currentHash in listener
+      // Use currentHashRef.current to get the latest value of currentHash
+      if (newHash && newHash !== currentHashRef.current) { 
         const newData = loadData(newHash);
         const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         if (newData) {
           setAppData({ ...newData, theme: newData.theme || currentSystemTheme });
-          setCurrentHash(newHash);
         } else {
+          // If navigating to a new hash that has no data, initialize it.
           const freshData: AppData = { ...defaultAppData, theme: currentSystemTheme, customPrimaryColor: undefined };
           saveData(newHash, freshData);
           setAppData(freshData);
-          setCurrentHash(newHash);
         }
+        setCurrentHash(newHash); // Update state, which also updates ref for next event
       }
     };
     
-    // Ref to hold currentHash for the event listener to avoid stale closures
-    const currentHashRef = React.useRef(currentHash);
-    useEffect(() => {
-      currentHashRef.current = currentHash;
-    }, [currentHash]);
-
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
 
-  }, [loadData, saveData]);
+  }, [loadData, saveData]); // Dependencies for the main setup effect
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
@@ -137,7 +140,7 @@ export function useAppData() {
       customPrimaryColor: undefined // Reset custom color for new page
     };
     saveData(newHash, newPageData);
-    window.location.hash = newHash;
+    window.location.hash = newHash; // This will trigger the hashchange listener
   }, [saveData, appData?.theme]);
 
 
@@ -153,5 +156,4 @@ export function useAppData() {
   };
 }
 
-// Minimal React import for useRef
-import React from 'react';
+// Removed redundant React import from here
