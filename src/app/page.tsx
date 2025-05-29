@@ -28,12 +28,12 @@ function PageContent() {
     setLinkGroups,
     setTheme,
     createNewPage,
-    currentHash, // This should now be clean (no query params) from useAppData
+    currentHash, 
     setCustomPrimaryColor,
   } = useAppData();
   
   const { toast } = useToast();
-  const searchParams = useSearchParams(); // For reading query parameters
+  const searchParams = useSearchParams(); 
   const router = useRouter();
   const pathname = usePathname();
 
@@ -77,7 +77,6 @@ function PageContent() {
       return;
     }
     try {
-      // Construct URL without query parameters, using the clean currentHash
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -98,7 +97,6 @@ function PageContent() {
     if (!appData) return;
 
     const newHash = generateRandomHash();
-    // Ensure localStorage key is clean (though generateRandomHash should be)
     const cleanNewHash = newHash.split('?')[0]; 
 
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -127,7 +125,7 @@ function PageContent() {
   };
 
   const handleOpenGroupInNewWindow = (groupToOpen: LinkGroup) => {
-    if (!currentHash) { // currentHash from useAppData should be clean
+    if (!currentHash) { 
       toast({ title: "Error", description: "Current page details not available.", variant: "destructive" });
       return;
     }
@@ -137,8 +135,7 @@ function PageContent() {
     }
 
     const newWindowUrl = `${window.location.origin}${pathname}#${currentHash}?openGroupInNewWindow=${groupToOpen.id}`;
-    // Add window features to encourage opening in a new window
-    window.open(newWindowUrl, '_blank', 'noopener,noreferrer,width=800,height=600'); 
+    window.open(newWindowUrl, '_blank', `noopener,noreferrer,width=${screen.availWidth},height=${screen.availHeight}`); 
     
     toast({
       title: "Opening in New Window...",
@@ -149,12 +146,9 @@ function PageContent() {
 
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    if (groupIdToOpen && appData && !isLoading && currentHash) { // Ensure currentHash is also available
+    if (groupIdToOpen && appData && !isLoading && currentHash) {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-
-      // Clear the query parameter. Ensure currentHash is clean.
-      const newUrl = `${pathname}#${currentHash}`; 
-      router.replace(newUrl, { scroll: false }); 
+      let urlCleared = false;
 
       if (group && group.urls.length > 0) {
         toast({
@@ -184,11 +178,18 @@ function PageContent() {
            console.error(`Invalid first URL, cannot replace helper tab: ${firstUrl}`);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain.`, variant: "destructive"});
         }
-
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
       } else if (group === undefined) { 
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
+      }
+
+      // Clear the query parameter after attempting to process the group
+      // This ensures it's not cleared prematurely if appData is still loading on first pass
+      if (!urlCleared) { // Check if already cleared, though it should only run once if logic is correct
+        const newUrl = `${pathname}#${currentHash}`; 
+        router.replace(newUrl, { scroll: false }); 
+        // urlCleared = true; // If we were to allow re-entry in more complex scenarios
       }
     }
   }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
@@ -399,3 +400,4 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
+
