@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, normalizeUrl } from "@/lib/utils";
 
 interface LinkGroupCardProps {
   group: LinkGroup;
@@ -46,6 +46,10 @@ export function LinkGroupCard({
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
   const handleOpenLinks = () => {
     if (group.urls.length === 0) {
       toast({
@@ -57,11 +61,12 @@ export function LinkGroupCard({
     }
     onOpen(group);
     group.urls.forEach(url => {
+      const normalized = normalizeUrl(url);
       try {
-        new URL(url);
-        window.open(url, "_blank");
+        new URL(normalized); // Validate before opening
+        window.open(normalized, "_blank");
       } catch (e) {
-        console.warn(`Invalid URL skipped: ${url}`);
+        console.warn(`Invalid or unopenable URL skipped: ${url} (normalized to ${normalized})`);
         toast({
           title: "Invalid URL",
           description: `Skipped invalid URL: ${url}`,
@@ -87,12 +92,6 @@ export function LinkGroupCard({
     onOpenInNewWindow(group);
   };
 
-  const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent) => {
-    if (!isReadOnlyPreview) { // Only stop if not read-only, as dragging is disabled then
-      e.stopPropagation();
-    }
-  };
-
   return (
     <Card className={cn(
       "flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300",
@@ -114,7 +113,7 @@ export function LinkGroupCard({
         <ul className="space-y-1 text-sm text-muted-foreground max-h-32 overflow-y-auto">
           {group.urls.slice(0, 3).map((url, index) => (
             <li key={index} className="truncate" title={url}>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary transition-colors">
+              <a href={normalizeUrl(url)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-primary transition-colors">
                 {url}
               </a>
             </li>
@@ -127,8 +126,8 @@ export function LinkGroupCard({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
-                        onClick={handleOpenLinks}
-                        onPointerDown={stopPropagationForRegularButtons}
+                        onClick={(e) => { stopPropagationForEvents(e); handleOpenLinks(); }}
+                        onPointerDown={stopPropagationForEvents}
                         className="justify-center group overflow-hidden"
                         variant="default"
                     >
@@ -143,8 +142,8 @@ export function LinkGroupCard({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
-                        onClick={handleOpenInNewWindowClick}
-                        onPointerDown={stopPropagationForRegularButtons}
+                        onClick={(e) => { stopPropagationForEvents(e); handleOpenInNewWindowClick(); }}
+                        onPointerDown={stopPropagationForEvents}
                         className="justify-center group overflow-hidden"
                         variant="outline"
                     >
@@ -163,8 +162,8 @@ export function LinkGroupCard({
               <Button 
                 variant="outline" 
                 size="icon" 
-                onClick={() => !isReadOnlyPreview && onEdit(group)} 
-                onPointerDown={stopPropagationForRegularButtons} 
+                onClick={(e) => { if (isReadOnlyPreview) return; stopPropagationForEvents(e); onEdit(group); }}
+                onPointerDown={stopPropagationForEvents}
                 aria-label="Edit group"
                 disabled={isReadOnlyPreview}
                 {...joyrideEditButtonProps}
@@ -183,14 +182,13 @@ export function LinkGroupCard({
                 <Button 
                   variant="destructive" 
                   size="icon" 
-                  onClick={() => { 
-                    if (isReadOnlyPreview) return;
+                  onClick={(e) => { 
+                    if (isReadOnlyPreview) return; 
+                    // No stopPropagation needed if drag delay is sufficient
                     setIsDeleteDialogOpen(true);
                   }}
                   aria-label="Delete group"
                   disabled={isReadOnlyPreview}
-                  // No onPointerDown needed here due to dnd-kit sensor delay 
-                  // and DialogTrigger handling its own events.
                   {...joyrideDeleteButtonProps}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -218,5 +216,3 @@ export function LinkGroupCard({
     </Card>
   );
 }
-
-    

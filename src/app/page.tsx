@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { generateRandomHash } from "@/lib/utils";
+import { generateRandomHash, normalizeUrl } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -42,7 +42,7 @@ const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
 function PageContent() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParamsHook = useSearchParams(); // Renamed to avoid conflict
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
@@ -54,7 +54,7 @@ function PageContent() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
-      const sharedDataParam = searchParamsHook.get('sharedData');
+      const sharedDataParam = searchParams.get('sharedData');
       if (sharedDataParam && !window.location.hash) {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
@@ -65,9 +65,11 @@ function PageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
+          // Clear the sharedData param from URL after processing
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
-          window.history.replaceState(null, '', newUrl.pathname + newUrl.search + newUrl.hash);
+          router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
+
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -75,13 +77,15 @@ function PageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-          const currentCleanUrl = window.location.pathname + window.location.hash;
-          window.history.replaceState(null, '', currentCleanUrl);
+          // Clear potentially problematic param
+           const newUrl = new URL(window.location.href);
+           newUrl.searchParams.delete('sharedData');
+           router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true);
+      setSharedDataProcessed(true); // Mark as processed even if no param or error
     }
-  }, [searchParamsHook, router, pathname, toast, sharedDataProcessed]);
+  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
   const {
     isLoading,
@@ -179,19 +183,19 @@ function PageContent() {
       spotlightClicks: true,
     },
     {
-      target: '[data-joyride="link-group-card"]', // Assumes at least one card (sample or newly added)
+      target: '[data-joyride="link-group-card"]', 
       content: 'Your link groups appear as cards. If you have multiple, you can drag them to reorder.',
       placement: 'top',
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="link-group-edit-button"]', // Assumes at least one card
+      target: '[data-joyride="link-group-edit-button"]', 
       content: 'Use the edit button to modify a group\'s details or links.',
       placement: 'top',
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="link-group-delete-button"]', // Assumes at least one card
+      target: '[data-joyride="link-group-delete-button"]', 
       content: 'And the delete button to remove a group.',
       placement: 'top',
       disableBeacon: true,
@@ -219,23 +223,13 @@ function PageContent() {
       setRunJoyride(false);
     }
 
-    // If a step requires opening a dialog (e.g., "Add New Group"),
-    // and the user clicks it via spotlightClicks, ensure the dialog is opened.
     if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
-      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) { // Step for "Add New Group"
-         // Check if form is already open to prevent re-opening
+      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) { 
         if (!isFormOpen) {
            setIsFormOpen(true);
         }
       }
-      // If current step was to save group form, and it's done, close the form.
-      // This is tricky because joyride doesn't know when form submission completes.
-      // We rely on the user clicking and the form closing itself.
-      // A more robust solution might involve custom control of joyride advancement.
     }
-
-
-    // console.log('Joyride callback data:', data);
   }, [currentHash, initialSharedData, isFormOpen]);
 
   const startPristineTour = () => {
@@ -388,15 +382,14 @@ function PageContent() {
   };
 
  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const groupIdToOpen = queryParams.get('openGroupInNewWindow');
+    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
 
       let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
-
+      
       if (group && group.urls.length > 0) {
         toast({
           title: `Opening "${group.name}"...`,
@@ -405,13 +398,10 @@ function PageContent() {
         });
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
 
-        // Clear the query param by replacing the URL
-        const newCleanUrl = new URL(window.location.href);
-        newCleanUrl.searchParams.delete('openGroupInNewWindow');
-        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
-        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash);
+        router.replace(urlToClearParamsFrom, { scroll: false });
+        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
 
-        const [firstUrl, ...otherUrls] = group.urls;
+        const [firstUrl, ...otherUrls] = group.urls.map(normalizeUrl);
 
         otherUrls.forEach(url => {
           try {
@@ -437,27 +427,20 @@ function PageContent() {
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000 });
+             // Router replace already happened, tab remains on cleaned URL.
           }
         }, 250);
       } else if (group && group.urls.length === 0) {
         console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        const newCleanUrl = new URL(window.location.href);
-        newCleanUrl.searchParams.delete('openGroupInNewWindow');
-        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
+        router.replace(urlToClearParamsFrom, { scroll: false });
       } else if (group === undefined) {
         console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        const newCleanUrl = new URL(window.location.href);
-        newCleanUrl.searchParams.delete('openGroupInNewWindow');
-        router.replace(newCleanUrl.pathname + newCleanUrl.search + newCleanUrl.hash, { scroll: false });
-      }
-    } else {
-      if (groupIdToOpen) {
-        // console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
+        router.replace(urlToClearParamsFrom, { scroll: false });
       }
     }
- }, [searchParamsHook, appData, isLoading, currentHash, pathname, router, toast]);
+ }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
 
 
   const sensors = useSensors(
@@ -483,7 +466,8 @@ function PageContent() {
 
   const isPristineSamplePage = !currentHash && appData && !initialSharedData;
   const isSharedPreview = !currentHash && appData && !!initialSharedData;
-  const isReadOnlyPreview = isSharedPreview; // Only shared previews are read-only until saved
+  // Only shared previews are read-only. Pristine sample page is interactive.
+  const isReadOnlyPreview = isSharedPreview;
 
 
   if (isLoading || !appData || !sharedDataProcessed) {
@@ -554,10 +538,10 @@ function PageContent() {
     const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
-        title: "Page Saved!",
-        description: "Your new ZipGroup page is ready.",
+        title: isSharedPreview ? "Shared Page Saved!" : "Page Saved!",
+        description: isSharedPreview ? "The shared page is now part of your dashboard." : "Your new ZipGroup page is ready.",
       });
-      if (isPristineSamplePage) {
+      if (isPristineSamplePage) { // Only mark tour taken if it was the pristine sample
         localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
       }
     } else {
@@ -587,7 +571,7 @@ function PageContent() {
           showSkipButton
           scrollToFirstStep
           disableScrollParentFix 
-          spotlightClicks={true} // Enable for steps that require clicking the target
+          spotlightClicks={true} 
           styles={{
             options: {
               zIndex: 10000, 
@@ -599,19 +583,16 @@ function PageContent() {
             tooltip: {
               borderRadius: 'var(--radius)',
             },
-            buttonClose: {
-              // display: 'none', // Hiding close button to encourage using skip/next
-            },
           }}
         />
       )}
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={isPristineSamplePage || isSharedPreview ? handleSavePristineOrSharedPage : createNewBlankPage}
+            onCreateNewPage={createNewBlankPage} // Always create a new blank page
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={isReadOnlyPreview}
+            isReadOnlyPreview={isReadOnlyPreview} // For disabling theme controls on shared previews
             onInitiateShare={handleShareCurrentPage}
             canShareCurrentPage={!!currentHash && !isSharedPreview}
           />
@@ -648,7 +629,7 @@ function PageContent() {
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {isSharedPreview
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own and enable editing."
+                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own."
                     : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"}
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -679,7 +660,7 @@ function PageContent() {
               </div>
             )}
 
-            {!isReadOnlyPreview && appData && (
+            {appData && !isReadOnlyPreview && (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -701,12 +682,12 @@ function PageContent() {
                 </SortableContext>
               </DndContext>
             )}
-            {isReadOnlyPreview && appData && (
+             {appData && isReadOnlyPreview && ( // For shared page previews
               <LinkGroupList
                 groups={appData.linkGroups}
-                onAddGroup={handleAddGroup}
-                onEditGroup={handleEditGroup}
-                onDeleteGroup={handleDeleteGroup}
+                onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList due to isReadOnlyPreview
+                onEditGroup={handleEditGroup} // Will be disabled by LinkGroupCard
+                onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupCard
                 onOpenGroup={handleOpenGroup}
                 onOpenInNewWindow={handleOpenGroupInNewWindow}
                 isReadOnlyPreview={true}
@@ -791,6 +772,7 @@ export default function Home() {
 }
 
 function PageSkeletonForSuspense() {
+  // A simpler skeleton specifically for the Suspense fallback
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -806,8 +788,9 @@ function PageSkeletonForSuspense() {
         <div className="mb-8 text-center">
           <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
         </div>
+        {/* Simplified skeleton content for initial load */}
         <div className="flex justify-center mb-10">
-          <Skeleton className="h-12 w-64" />
+           <Skeleton className="h-12 w-64" />
         </div>
         <div className="text-center">
           <Skeleton className="h-5 w-1/2 mx-auto mb-2" />
@@ -817,5 +800,3 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
-
-    
