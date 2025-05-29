@@ -77,6 +77,7 @@ function PageContent() {
       return;
     }
     try {
+      // Ensure only the path and hash are copied, no query params
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -97,8 +98,6 @@ function PageContent() {
     if (!appData) return;
 
     const newHash = generateRandomHash();
-    // const cleanNewHash = newHash.split('?')[0]; // Not needed if newHash is always clean
-
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     const newPageData: AppData = {
@@ -124,28 +123,48 @@ function PageContent() {
     window.open(newUrl, '_blank');
   };
 
-  const handleOpenGroupInNewWindow = (groupToOpen: LinkGroup) => {
+  const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
     if (!currentHash) { 
-      toast({ title: "Error", description: "Current page details not available.", variant: "destructive" });
+      toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
       return;
     }
     if (groupToOpen.urls.length === 0) {
-      toast({ title: "No URLs", description: "This group has no URLs to open in a new window.", variant: "default" });
+      toast({ title: "No URLs", description: "This group has no URLs to open.", variant: "default" });
       return;
     }
 
-    // Construct URL with query parameter before the hash
-    const newWindowUrl = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
-    window.open(newWindowUrl, '_blank', `noopener,noreferrer,width=${screen.availWidth},height=${screen.availHeight}`); 
-    
-    toast({
-      title: "Opening in New Window...",
-      description: `A new window will attempt to open links from "${groupToOpen.name}". Check your popup blocker if it doesn't appear.`,
-      duration: 5000,
-    });
+    const specialUrl = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
+
+    try {
+      await navigator.clipboard.writeText(specialUrl);
+      toast({
+        title: "Link Copied for New Window!",
+        description: (
+          <div>
+            <p className="mb-2">A special link to open this group in a new window has been copied to your clipboard.</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Manually open a new browser window.</li>
+              <li>Paste the copied link into the address bar.</li>
+              <li>Press Enter.</li>
+            </ol>
+            <p className="mt-2">The new window will then open all links from the group "{groupToOpen.name}".</p>
+          </div>
+        ),
+        duration: 15000, // Longer duration for instructions
+      });
+    } catch (err) {
+      console.error("Failed to copy special URL for new window: ", err);
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy the special link for the new window.",
+        variant: "destructive",
+      });
+    }
   };
 
+
   useEffect(() => {
+    // This effect runs in the new window when the user pastes the special URL
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
     
     console.log('[OpenInNewWindowEffect] Triggered. GroupID (from query param):', groupIdToOpen, 'isLoading:', isLoading, 'appData:', !!appData, 'currentHash (from useAppData):', currentHash);
@@ -202,7 +221,7 @@ function PageContent() {
         } catch (e) {
            console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
-           // URL already cleared above
+           // URL already cleared (router.replace was called before this try-catch)
         }
       } else if (group && group.urls.length === 0) {
         console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
@@ -216,11 +235,13 @@ function PageContent() {
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       }
     } else {
-        if (groupIdToOpen) { 
+        if (groupIdToOpen && (isLoading || !appData || !currentHash) ) { 
+            // Only log if groupIdToOpen exists but other conditions are not met yet, to avoid noise
             console.log('[OpenInNewWindowEffect] Conditions not met yet. GroupID parsed:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
         }
     }
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
+  // Ensure dependencies are correct, especially if logic inside relies on more variables from appData or other hooks
+  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast, setLinkGroups /* if appData.linkGroups could be stale */]);
 
 
   if (isLoading || !appData) {
