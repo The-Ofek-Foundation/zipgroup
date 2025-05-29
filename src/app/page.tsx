@@ -12,7 +12,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info } from "lucide-react";
+import { ClipboardCopy, Save, Loader2, Info, Share2 } from "lucide-react"; // Added Share2
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
@@ -57,9 +57,11 @@ function PageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
+          // Clean the URL by removing sharedData param
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
-          router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+          // Use router.replace to update URL without adding to history and without full reload
+          router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -67,7 +69,7 @@ function PageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-          router.replace(pathname, { scroll: false }); 
+          router.replace(pathname + window.location.hash, { scroll: false }); 
         }
       }
       setSharedDataProcessed(true); 
@@ -143,6 +145,37 @@ function PageContent() {
     }
   };
 
+  const handleShareCurrentPage = async () => {
+    if (!currentHash || !appData) {
+      toast({
+        title: "Cannot Share",
+        description: "Please save the page first to enable sharing.",
+        variant: "default",
+      });
+      return;
+    }
+    try {
+      const { lastModified, ...shareableData } = appData;
+      const jsonString = JSON.stringify(shareableData);
+      const encodedJson = encodeURIComponent(jsonString);
+      const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+      
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Share Link Copied!",
+        description: "The link to share this page has been copied to your clipboard.",
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Failed to create share link for current page:", error);
+      toast({
+        title: "Share Failed",
+        description: "Could not create or copy the share link.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleOpenNewPageInNewTab = () => {
     if (!appData) return;
 
@@ -186,14 +219,15 @@ function PageContent() {
       toast({
         title: "Link Copied for New Window!",
         description: (
-          <div>
-            <p className="mb-2">A special link to open this group in a new window has been copied to your clipboard.</p>
-            <ol className="list-decimal list-inside space-y-1">
+          <div className="text-sm">
+            <p className="mb-2">A special link to open this group in a new window has been copied to your clipboard:</p>
+            <ol className="list-decimal list-inside space-y-1 my-2">
               <li>Manually open a new browser window.</li>
               <li>Paste the copied link into the address bar.</li>
               <li>Press Enter.</li>
             </ol>
             <p className="mt-2">The new window will then open all links from the group "{groupToOpen.name}".</p>
+            <p className="mt-1 text-xs text-muted-foreground">Ensure your browser allows popups from this site.</p>
           </div>
         ),
         duration: 15000, 
@@ -210,14 +244,15 @@ function PageContent() {
 
   useEffect(() => {
     let groupIdToOpen: string | null = null;
-    if (typeof window !== 'undefined' && window.location.search) {
-      const params = new URLSearchParams(window.location.search);
-      groupIdToOpen = params.get('openGroupInNewWindow');
-    }
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    groupIdToOpen = params.get('openGroupInNewWindow');
     
     if (groupIdToOpen && appData && !isLoading && currentHash) {
+      console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+      
+      let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
         toast({
@@ -225,41 +260,55 @@ function PageContent() {
           description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. This tab will become the first link.`,
           duration: 10000,
         });
+        console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
+        
         const [firstUrl, ...otherUrls] = group.urls;
         otherUrls.forEach(url => {
           try {
-            new URL(url); // Validate URL
+            new URL(url); 
             const newTab = window.open(url, '_blank');
              if (!newTab) {
-                console.warn(`Popup blocker might have prevented opening: ${url}`);
+                console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
                 toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000});
+            } else {
+                console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
             }
           } catch (e) {
-             console.warn(`Invalid URL skipped: ${url}`, e);
+             console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
              toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive"});
           }
         });
         
+        // Clear query param from URL first
         router.replace(urlToClearParamsFrom, { scroll: false }); 
+        console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
+
         setTimeout(() => {
           try {
             new URL(firstUrl); // Validate URL
+            console.log("[OpenInNewWindowEffect] Attempting to replace current tab with first URL:", firstUrl);
             window.location.replace(firstUrl);
           } catch (e) {
-            console.error(`Error navigating to first URL "${firstUrl}":`, e);
+            console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
           }
         }, 250); 
       } else if (group && group.urls.length === 0) {
+        console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
         router.replace(urlToClearParamsFrom, { scroll: false });
       } else if (group === undefined) {
+        console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
         router.replace(urlToClearParamsFrom, { scroll: false });
       }
+    } else {
+      if (groupIdToOpen) {
+        console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
+  }, [searchParams, appData, isLoading, currentHash]); // router and pathname are stable
 
 
   const sensors = useSensors(
@@ -381,6 +430,8 @@ function PageContent() {
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
             isReadOnlyPreview={isReadOnlyPreview}
+            onInitiateShare={handleShareCurrentPage}
+            canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-8 text-center">
@@ -454,9 +505,9 @@ function PageContent() {
              {appData && isReadOnlyPreview && (
                 <LinkGroupList
                     groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
-                    onEditGroup={handleEditGroup} // Will be disabled by LinkGroupCard
-                    onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupCard
+                    onAddGroup={handleAddGroup}
+                    onEditGroup={handleEditGroup}
+                    onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
                     isReadOnlyPreview={isReadOnlyPreview}

@@ -5,14 +5,17 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, ListChecks } from "lucide-react";
+import { Zap, ListChecks, Share2 } from "lucide-react"; // Added Share2
 import Link from "next/link";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AppHeaderProps {
   onCreateNewPage: () => void;
   customPrimaryColor: string | undefined;
   onSetCustomPrimaryColor: (color?: string) => void;
   isReadOnlyPreview?: boolean;
+  onInitiateShare?: () => void; // For sharing the current page
+  canShareCurrentPage?: boolean; // To enable/disable the share button
 }
 
 export function AppHeader({
@@ -20,6 +23,8 @@ export function AppHeader({
   customPrimaryColor,
   onSetCustomPrimaryColor,
   isReadOnlyPreview = false,
+  onInitiateShare,
+  canShareCurrentPage = false,
 }: AppHeaderProps) {
 
   return (
@@ -33,12 +38,33 @@ export function AppHeader({
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard">
               <span className="flex items-center gap-1.5">
-                <ListChecks className="h-4 w-4"/>
+                <ListChecks />
                 Dashboard
               </span>
             </Link>
           </Button>
-          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview}>New Page</Button>
+          {/* "New Page" button is no longer disabled by isReadOnlyPreview */}
+          <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
+          
+          {onInitiateShare && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onInitiateShare}
+                  disabled={!canShareCurrentPage}
+                  aria-label="Share this page"
+                >
+                  <Share2 className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{canShareCurrentPage ? "Share this page" : "Save the page first to enable sharing"}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           <CustomColorPicker
             currentCustomColor={customPrimaryColor}
             onSetCustomColor={onSetCustomPrimaryColor}
