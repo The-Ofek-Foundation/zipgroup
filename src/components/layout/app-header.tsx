@@ -43,14 +43,21 @@ export function AppHeader({
           </h1>
         </div>
         <div className="flex items-center gap-2" {...joyrideProps}>
-          <Button asChild variant="outline" size="sm">
-             <Link href="/">
-              <span className="flex items-center gap-1.5">
-                <HomeIcon className="h-4 w-4"/>
-                Home
-              </span>
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/">
+                  <span className="flex items-center gap-1.5">
+                    <HomeIcon className="h-4 w-4"/>
+                    <span className="hidden md:inline">Home</span>
+                  </span>
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Go to Home Page</p>
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
