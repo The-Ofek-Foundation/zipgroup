@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { generateRandomHash } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // Matches useAppData for consistency
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; 
 
 function PageContent() {
   const {
@@ -33,7 +33,8 @@ function PageContent() {
   } = useAppData();
   
   const { toast } = useToast();
-  const searchParams = useSearchParams(); 
+  // searchParams from useSearchParams will not read params from the hash.
+  // We will manually parse params from window.location.hash for openGroupInNewWindow.
   const router = useRouter();
   const pathname = usePathname();
 
@@ -77,7 +78,6 @@ function PageContent() {
       return;
     }
     try {
-      // Ensure only the base URL + path + hash is copied, no query params
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -146,16 +146,33 @@ function PageContent() {
   };
 
   useEffect(() => {
-    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    console.log('[OpenInNewWindowEffect] Triggered. GroupID:', groupIdToOpen, 'isLoading:', isLoading, 'appData:', appData, 'currentHash:', currentHash);
+    // Manually parse 'openGroupInNewWindow' from the hash string
+    const hashString = window.location.hash.substring(1); // Remove '#'
+    const hashParts = hashString.split('?');
+    // const actualHashKey = hashParts[0]; // This should align with `currentHash` from useAppData
+    let groupIdFromHashManualParse: string | null = null;
+    if (hashParts.length > 1) {
+      const queryParamsInHash = new URLSearchParams(hashParts[1]);
+      groupIdFromHashManualParse = queryParamsInHash.get('openGroupInNewWindow');
+    }
+    
+    const groupIdToOpen = groupIdFromHashManualParse; // Prioritize manually parsed value
+
+    console.log('[OpenInNewWindowEffect] Triggered. GroupID (manually parsed from hash):', groupIdToOpen, 'isLoading:', isLoading, 'appData:', !!appData, 'currentHash (from useAppData):', currentHash);
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
+      // currentHash from useAppData IS the clean hash key (e.g., p797e93b)
+      // We need to ensure that the new window's currentHash state (from useAppData) is also this clean hash.
+      // The logs indicate useAppData correctly sets currentHash to the clean version.
+      
       console.log('[OpenInNewWindowEffect] Conditions met. Processing group ID:', groupIdToOpen);
       console.log('[OpenInNewWindowEffect] Link groups available:', appData.linkGroups);
 
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log('[OpenInNewWindowEffect] Found group:', group);
 
+      // IMPORTANT: The URL to clear params from should only contain the clean hash.
+      // currentHash from useAppData is already clean.
       const urlToClearParamsFrom = `${pathname}#${currentHash}`; 
 
       if (group && group.urls.length > 0) {
@@ -188,37 +205,46 @@ function PageContent() {
         
         try {
           new URL(firstUrl); 
-          console.log(`[OpenInNewWindowEffect] Clearing params, new helper URL: ${urlToClearParamsFrom}`);
-          router.replace(urlToClearParamsFrom, { scroll: false });
+          console.log(`[OpenInNewWindowEffect] Clearing params (navigating to first URL), new helper URL: ${urlToClearParamsFrom}`);
+          // router.replace needs to happen before window.location.replace to ensure the URL is clean if navigation fails or for history.
+          router.replace(urlToClearParamsFrom, { scroll: false }); 
           
           console.log(`[OpenInNewWindowEffect] Attempting to navigate current tab to first URL after delay: ${firstUrl}`);
           setTimeout(() => {
              console.log(`[OpenInNewWindowEffect] Timeout: Navigating to ${firstUrl}`);
-             window.location.replace(firstUrl);
+             window.location.replace(firstUrl); // Navigate the current tab
           }, 250); 
         } catch (e) {
            console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
-           console.log(`[OpenInNewWindowEffect] Clearing params due to bad first URL, new helper URL: ${urlToClearParamsFrom}`);
+           console.log(`[OpenInNewWindowEffect] Clearing params (bad first URL), new helper URL: ${urlToClearParamsFrom}`);
            router.replace(urlToClearParamsFrom, { scroll: false }); 
         }
       } else if (group && group.urls.length === 0) {
         console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        console.log(`[OpenInNewWindowEffect] Clearing params, group has no URLs, new helper URL: ${urlToClearParamsFrom}`);
+        console.log(`[OpenInNewWindowEffect] Clearing params (group has no URLs), new helper URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       } else if (group === undefined) { 
         console.log('[OpenInNewWindowEffect] Group not found for ID:', groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        console.log(`[OpenInNewWindowEffect] Clearing params, group not found, new helper URL: ${urlToClearParamsFrom}`);
+        console.log(`[OpenInNewWindowEffect] Clearing params (group not found), new helper URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       }
     } else {
-        if (groupIdToOpen) {
-            console.log('[OpenInNewWindowEffect] Conditions not met yet. groupIdToOpen:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
+        // This block will run if groupIdToOpen is null OR if other conditions (appData, !isLoading, currentHash) are not met.
+        if (groupIdToOpen) { // Only log this if we actually parsed a group ID but other conditions failed
+            console.log('[OpenInNewWindowEffect] Conditions not met yet. GroupID parsed:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
+        } else if (window.location.hash.includes('openGroupInNewWindow=')) {
+            // This means the param is in the hash, but we failed to parse it, or it's not yet time to process
+            console.log('[OpenInNewWindowEffect] openGroupInNewWindow detected in hash, but conditions not met or parsing issue. isLoading:', isLoading, 'appData:', !!appData, 'currentHash:', currentHash);
         }
     }
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]);
+  // Dependencies: useSearchParams is not directly used for groupIdToOpen if parsed manually.
+  // The effect should re-run when appData, isLoading, currentHash change, as these are crucial for the logic.
+  // router, pathname, toast are for actions within the effect.
+  // window.location.hash changes are implicitly handled when useAppData updates currentHash, which is a dependency.
+  }, [appData, isLoading, currentHash, router, pathname, toast]);
 
 
   if (isLoading || !appData) {
