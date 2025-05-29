@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
@@ -48,7 +48,7 @@ function ActualPageContent() {
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const sharedDataParam = searchParams.get('sharedData');
-      if (sharedDataParam && !window.location.hash) { // Ensure no hash when processing shared data
+      if (sharedDataParam && !window.location.hash) {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
@@ -58,7 +58,6 @@ function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clear the sharedData param from URL without affecting hash or other params
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.delete('sharedData');
           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
@@ -70,13 +69,12 @@ function ActualPageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-           // Clear the sharedData param from URL
            const currentUrl = new URL(window.location.href);
            currentUrl.searchParams.delete('sharedData');
            router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found
+      setSharedDataProcessed(true);
     }
   }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
@@ -87,11 +85,9 @@ function ActualPageContent() {
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    // createNewBlankPageAndRedirect is now mainly for AppHeader "New Page" from an existing page
-    createNewBlankPageAndRedirect,
     currentHash,
     setCustomPrimaryColor,
-  } = useAppData(initialSharedData);
+  } = useAppData(initialSharedData); // createNewBlankPageAndRedirect removed from here
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -135,6 +131,7 @@ function ActualPageContent() {
       return;
     }
     try {
+      // Construct URL without query parameters for copying
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -165,6 +162,7 @@ function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
+      // Share link uses query param before hash
       const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`;
 
       await navigator.clipboard.writeText(shareUrl);
@@ -182,13 +180,7 @@ function ActualPageContent() {
       });
     }
   };
-
-  const handleOpenNewPageInNewTab = () => {
-    // This function is for the footer link. It should always open a new, blank page.
-    const newUrl = `${window.location.origin}/`; // Will trigger root redirect to a new blank page
-    window.open(newUrl, '_blank');
-  };
-
+  
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
     if (!currentHash) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
@@ -199,7 +191,6 @@ function ActualPageContent() {
       return;
     }
 
-    // Construct URL with query param before the hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -232,39 +223,34 @@ function ActualPageContent() {
 
  useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    // Construct the URL to clear params from, ensuring hash is included if present
-    let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+    const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
-      console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
+      // console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash, "appData title:", appData.pageTitle);
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       
       if (group && group.urls.length > 0) {
         toast({
           title: `Opening "${group.name}"...`,
-          description: `Attempting to open ${group.urls.length} link(s). IMPORTANT: Your browser's popup blocker might prevent some or all links from opening. This tab will become the first link.`,
+          description: `Attempting to open ${group.urls.length} link(s). Your browser's popup blocker might prevent some links. This tab will become the first link.`,
           duration: 10000,
         });
-        console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
+        // console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
+        
+        router.replace(cleanPathWithHash, { scroll: false }); // Clear param before opening links
+        // console.log("[OpenInNewWindowEffect] Cleared query param, new URL target:", cleanPathWithHash);
 
-        // Clear query param first.
-        // The target URL for clearing should be the base path + hash.
-        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
-        router.replace(cleanPathWithHash, { scroll: false });
-        console.log("[OpenInNewWindowEffect] Cleared query param, new URL target:", cleanPathWithHash);
+        const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
 
-
-        const [firstUrl, ...otherUrls] = group.urls.map(normalizeUrl);
-
-        otherUrls.forEach(url => {
+        otherUrlsFull.forEach(url => {
           try {
-            new URL(url); // Validate URL
+            new URL(url); 
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
-              toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check your popup blocker settings.`, variant: "default", duration: 7000 });
+              toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check settings.`, variant: "default", duration: 7000 });
             } else {
-               console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
+              //  console.log("[OpenInNewWindowEffect] Opened in new tab:", url);
             }
           } catch (e) {
             console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
@@ -274,24 +260,21 @@ function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrl); // Validate first URL
-            console.log("[OpenInNewWindowEffect] Attempting to replace current tab with first URL:", firstUrl);
-            window.location.replace(firstUrl);
+            new URL(firstUrlFull); 
+            // console.log("[OpenInNewWindowEffect] Attempting to replace current tab with first URL:", firstUrlFull);
+            window.location.replace(firstUrlFull);
           } catch (e) {
-            console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
-            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000 });
-            // If first URL navigation fails, the URL is already cleaned.
+            console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
+            toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
           }
-        }, 250); // Short delay to allow other tabs to initiate opening
+        }, 250); 
       } else if (group && group.urls.length === 0) {
-        console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
+        // console.warn("[OpenInNewWindowEffect] Group found but has no URLs:", group.name);
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
         router.replace(cleanPathWithHash, { scroll: false });
-      } else if (!group) { // Corrected condition: if group is undefined
-        console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
+      } else if (!group) { 
+        // console.warn("[OpenInNewWindowEffect] Group not found for ID:", groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
-        const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
         router.replace(cleanPathWithHash, { scroll: false });
       }
     }
@@ -320,7 +303,7 @@ function ActualPageContent() {
   };
 
   const isSharedPreview = !currentHash && appData && !!initialSharedData;
-  const isReadOnlyPreview = isSharedPreview; // Only shared page previews are read-only for now.
+  const isReadOnlyPreview = isSharedPreview; 
 
   if (isLoading || !appData || !sharedDataProcessed) {
     return <PageSkeletonForSuspense />;
@@ -359,9 +342,8 @@ function ActualPageContent() {
     setIsFormOpen(false);
   };
 
-  const handleSaveCurrentDataAsNewPage = async () => { // Renamed for clarity
+  const handleSaveCurrentDataAsNewPage = async () => { 
     setIsSavingNewPage(true);
-    // createNewPageFromAppData is designed to save current appData (whether pristine or shared)
     const newHash = createNewPageFromAppData(); 
     if (newHash) {
       toast({
@@ -388,7 +370,7 @@ function ActualPageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPageAndRedirect} // Standard "New Page" creates a blank one
+            onCreateNewPage={() => router.push('/')} // Simplified for now, will trigger new page on /
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
             isReadOnlyPreview={isReadOnlyPreview}
@@ -407,7 +389,6 @@ function ActualPageContent() {
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
                 disabled={isReadOnlyPreview}
-                data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -418,10 +399,7 @@ function ActualPageContent() {
             </div>
 
             {isSharedPreview && (
-              <div
-                className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
-                data-joyride="interactive-sample-info" 
-              >
+              <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
                   Previewing Shared Page
@@ -433,7 +411,6 @@ function ActualPageContent() {
                   onClick={handleSaveCurrentDataAsNewPage}
                   size="lg"
                   disabled={isSavingNewPage}
-                  data-joyride="save-pristine-page-button" 
                 >
                   {isSavingNewPage ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -448,9 +425,6 @@ function ActualPageContent() {
               </div>
             )}
             
-            {/* Render LinkGroupList if not a pristine page OR if it's a shared preview */}
-            {/* This ensures shared previews show their groups. */}
-            {/* If it's a pristine page that's now blank (redirected), this will show "Add New Group" button */}
             {(currentHash || isSharedPreview) && appData && (
               isReadOnlyPreview ? (
                 <LinkGroupList
@@ -498,7 +472,7 @@ function ActualPageContent() {
               <span>Powered by </span>
               <Button
                 variant="link"
-                onClick={handleOpenNewPageInNewTab}
+                onClick={() => router.push('/')} // Simplified for now
                 className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
               >
                 ZipGroup.link
@@ -533,28 +507,30 @@ function RootRedirector() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { createNewBlankPageAndRedirect, isLoading: appDataIsLoading, appData } = useAppData();
-  const [isRedirecting, setIsRedirecting] = useState(true); // Start assuming redirect might happen
+  const { createNewBlankPageAndRedirect } = useAppData(); // Only need this function
+  const [isRedirecting, setIsRedirecting] = useState(true); 
+  const redirectInitiatedRef = useRef(false);
 
   useEffect(() => {
-    // Ensure router is ready and we are on the client
-    if (typeof window !== 'undefined' && router && !appDataIsLoading) {
-      const hasHash = !!window.location.hash; // Check hash client-side
+    if (typeof window !== 'undefined' && router) { // Check router readiness
+      const hasHash = !!window.location.hash;
       const hasSharedData = !!searchParams.get('sharedData');
-      const shouldRedirect = pathname === '/' && !hasHash && !hasSharedData;
+      const shouldRedirectToNewPage = pathname === '/' && !hasHash && !hasSharedData;
       
-      if (shouldRedirect) {
-        console.log("RootRedirector: Attempting to redirect to new blank page...");
+      if (shouldRedirectToNewPage && !redirectInitiatedRef.current) {
+        redirectInitiatedRef.current = true;
+        // console.log("RootRedirector: Attempting to redirect to new blank page...");
         createNewBlankPageAndRedirect();
-        // isRedirecting remains true; page will show skeleton until redirect completes.
-      } else {
-        // console.log("RootRedirector: Not redirecting. Path:", pathname, "Hash:", window.location.hash, "SharedData:", searchParams.get('sharedData'));
-        setIsRedirecting(false); // Conditions for redirect not met, allow content render
+        // isRedirecting remains true; skeleton shown until navigation completes.
+      } else if (!shouldRedirectToNewPage) {
+        // console.log("RootRedirector: Not redirecting or redirect already handled. Path:", pathname, "Hash:", window.location.hash, "SharedData:", searchParams.get('sharedData'));
+        setIsRedirecting(false); 
       }
     }
-  }, [router, searchParams, pathname, createNewBlankPageAndRedirect, appDataIsLoading, appData]);
+  }, [router, searchParams, pathname, createNewBlankPageAndRedirect]);
 
-  if (isRedirecting) { // This will be true initially, and if a redirect is initiated.
+
+  if (isRedirecting) { 
     return <PageSkeletonForSuspense />;
   }
   return <ActualPageContent />;
