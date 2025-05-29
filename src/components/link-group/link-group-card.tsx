@@ -74,7 +74,9 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
     onOpenInNewWindow(group);
   };
 
-  const stopPropagation = (e: React.MouseEvent | React.PointerEvent) => {
+  const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent) => {
+    // This is for regular buttons that are NOT AlertDialogTriggers
+    // to prevent drag when clicking them.
     e.stopPropagation();
   };
 
@@ -113,7 +115,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 <TooltipTrigger asChild>
                     <Button
                         onClick={handleOpenLinks}
-                        onPointerDown={stopPropagation}
+                        onPointerDown={stopPropagationForRegularButtons}
                         className="justify-center group overflow-hidden"
                         variant="default"
                     >
@@ -129,7 +131,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 <TooltipTrigger asChild>
                     <Button
                         onClick={handleOpenInNewWindowClick}
-                        onPointerDown={stopPropagation}
+                        onPointerDown={stopPropagationForRegularButtons}
                         className="justify-center group overflow-hidden"
                         variant="outline"
                     >
@@ -145,7 +147,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
         <div className="flex flex-row items-center gap-x-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={() => onEdit(group)} onPointerDown={stopPropagation} aria-label="Edit group">
+              <Button variant="outline" size="icon" onClick={() => onEdit(group)} onPointerDown={stopPropagationForRegularButtons} aria-label="Edit group">
                 <Edit3 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -159,8 +161,7 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
               <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="icon" 
-                    onPointerDown={stopPropagation} // Keep to prevent drag on button press
-                    // onClick={stopPropagation} // REMOVE this to allow AlertDialog to handle click
+                    // REMOVE onPointerDown={stopPropagation} here to allow AlertDialog to function
                     aria-label="Delete group">
                     <Trash2 className="h-4 w-4" />
                   </Button>

@@ -29,7 +29,7 @@ import {
 import {
   arrayMove,
   SortableContext,
-  rectSortingStrategy, // Using rectSortingStrategy for grid layout
+  rectSortingStrategy, 
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 
@@ -92,6 +92,7 @@ function PageContent() {
       return;
     }
     try {
+      // Ensure we copy the URL without any active query parameters like openGroupInNewWindow
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -115,13 +116,16 @@ function PageContent() {
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     const newPageData: AppData = {
-      linkGroups: [],
-      pageTitle: `ZipGroup Page ${newHash}`,
-      theme: appData.theme || currentSystemTheme,
-      customPrimaryColor: appData.customPrimaryColor,
+      linkGroups: [], // New page starts empty
+      pageTitle: `ZipGroup Page ${newHash}`, // Default title for the new page
+      theme: appData.theme || currentSystemTheme, // Inherit theme
+      customPrimaryColor: appData.customPrimaryColor, // Inherit custom color
+      // lastModified will be set when/if this new page is first saved with content
     };
 
     try {
+      // We save this empty page data so that when the new tab opens, it finds it.
+      // If the user adds no groups, it will be cleaned up eventually by dashboard or useAppData.
       localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
     } catch (error) {
       console.error("Failed to save data for new tab:", error);
@@ -147,6 +151,7 @@ function PageContent() {
       return;
     }
 
+    // Construct the special URL with the query parameter *before* the hash
     const specialUrl = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -189,6 +194,7 @@ function PageContent() {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log('[OpenInNewWindowEffect] Found group:', group);
 
+      // URL to redirect to after processing (clears the query param, keeps the hash)
       const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
@@ -219,12 +225,15 @@ function PageContent() {
           }
         });
         
+        // Clear the query parameter first
         console.log(`[OpenInNewWindowEffect] Clearing query param, new URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
 
+        // Then attempt to navigate the current tab
         try {
           new URL(firstUrl); 
           console.log(`[OpenInNewWindowEffect] Attempting to navigate current tab to first URL after delay: ${firstUrl}`);
+          // A small delay can sometimes help ensure other tabs have initiated opening.
           setTimeout(() => {
              console.log(`[OpenInNewWindowEffect] Timeout: Navigating to ${firstUrl}`);
              window.location.replace(firstUrl); 
@@ -232,27 +241,36 @@ function PageContent() {
         } catch (e) {
            console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
+           // The URL is already cleaned by router.replace above, so no further action needed here for URL.
         }
+
       } else if (group && group.urls.length === 0) {
         console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
         console.log(`[OpenInNewWindowEffect] Clearing query param (group has no URLs), new URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
-      } else if (group === undefined) { 
+      } else if (group === undefined) { // Explicitly check for undefined
         console.log('[OpenInNewWindowEffect] Group not found for ID:', groupIdToOpen);
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
         console.log(`[OpenInNewWindowEffect] Clearing query param (group not found), new URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
       }
     } else {
+        // Log if groupIdToOpen is present but other conditions aren't met
         if (groupIdToOpen && (isLoading || !appData || !currentHash) ) { 
             console.log('[OpenInNewWindowEffect] Conditions not met yet. GroupID parsed:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
         }
     }
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast, setLinkGroups]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast]); // setLinkGroups was removed as it's not directly used for mutation here.
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 150, // User must press and hold for 150ms
+        tolerance: 5, // And move less than 5px during that time
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })

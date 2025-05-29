@@ -93,8 +93,8 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
           <Link
             href={`/#${page.hash}`}
             className="block group"
-            onClick={stopPropagation}
-            onPointerDown={stopPropagation}
+            onClick={stopPropagation} // Keep for link
+            onPointerDown={stopPropagation} // Keep for link to prevent drag
             onKeyDown={stopPropagation} 
             tabIndex={0} 
           >
@@ -143,8 +143,7 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
                 size="sm"
                 className="w-full"
                 aria-label={`Delete page ${page.title}`}
-                onPointerDown={stopPropagation} // Keep to prevent drag on button press
-                // onClick={stopPropagation} // REMOVE this to allow AlertDialog to handle click
+                // REMOVE onPointerDown={stopPropagation} here to allow AlertDialog to function
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -205,8 +204,8 @@ export default function DashboardPage() {
               const hash = key.substring(LOCAL_STORAGE_PREFIX.length);
 
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
-                localStorage.removeItem(key);
-                initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
+                localStorage.removeItem(key); // Clean up empty pages
+                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); // Remove from order
                 continue;
               }
 
@@ -219,23 +218,27 @@ export default function DashboardPage() {
                 lastModified: parsedData.lastModified,
               });
             }
-          } catch (error) {
+          } catch (error)
+           {
             console.error("Failed to parse page data from local storage:", key, error);
           }
         }
       }
 
+      // Reconcile stored order with existing pages
       const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
       const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
 
+      // If the stored order had invalid hashes, update localStorage
       if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
-
+      
       const pageMap = new Map(allLoadedPages.map(p => [p.hash, p]));
       const finalPages: StoredPage[] = [];
       const processedHashes = new Set<string>();
 
+      // Add pages based on valid stored order
       for (const hash of validStoredOrder) {
         const page = pageMap.get(hash);
         if (page) {
@@ -244,14 +247,15 @@ export default function DashboardPage() {
         }
       }
 
+      // Add remaining pages (not in stored order), sorted by lastModified, then title
       const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
           return b.lastModified - a.lastModified; // Newest first
         }
-        if (a.lastModified) return -1;
+        if (a.lastModified) return -1; // Pages with lastModified come before those without
         if (b.lastModified) return 1;
-        return a.title.localeCompare(b.title);
+        return a.title.localeCompare(b.title); // Fallback to title sort
       });
 
       setPages([...finalPages, ...remainingPages]);
@@ -268,6 +272,7 @@ export default function DashboardPage() {
       localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hashToDelete}`);
       setPages(prevPages => {
         const newPages = prevPages.filter(p => p.hash !== hashToDelete);
+        // Update the stored order as well
         const newOrder = newPages.map(p => p.hash);
         localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrder));
         return newPages;
@@ -287,7 +292,12 @@ export default function DashboardPage() {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 150, // User must press and hold for 150ms
+        tolerance: 5, // And move less than 5px during that time
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -299,7 +309,7 @@ export default function DashboardPage() {
       setPages((currentPages) => {
         const oldIndex = currentPages.findIndex((p) => p.hash === active.id);
         const newIndex = currentPages.findIndex((p) => p.hash === over.id);
-        if (oldIndex === -1 || newIndex === -1) return currentPages;
+        if (oldIndex === -1 || newIndex === -1) return currentPages; // Should not happen
 
         const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
         const newOrderOfHashes = reorderedPages.map(p => p.hash);
