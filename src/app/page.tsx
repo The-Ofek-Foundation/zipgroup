@@ -1,9 +1,11 @@
+
 "use client";
 
 import type React from "react";
 import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/app-header";
+import { AppFooter } from "@/components/layout/app-footer"; // Import the new footer
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
 import type { LinkGroup, AppData } from "@/lib/types";
@@ -13,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, Home as HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react";
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HomeIcon as HomeIcon, PlusCircle, Trash2, Layers, SunMoon, Palette, FileText, BookOpenCheck, HelpCircle } from "lucide-react"; // Added HomeIcon alias
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -179,7 +181,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                       variant="destructive"
                       size="sm"
                       aria-label={`Delete page ${page.title}`}
-                       // No stopPropagation needed here if using activationConstraint for dnd
+                      // onPointerDown removed for dnd-kit activation constraint
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </Button>
@@ -216,9 +218,9 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
 
 function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true); // Renamed for clarity
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData();
+  const { createNewBlankPageAndRedirect } = useAppData(); // From useAppData in the same file context
 
   const {
     themeMode,
@@ -318,7 +320,7 @@ function DashboardView() {
 
   useEffect(() => {
     if (initialDataLoaded && !isThemeLoading) {
-      setIsLoading(false);
+      setIsLoadingData(false);
     }
   }, [initialDataLoaded, isThemeLoading]);
 
@@ -437,7 +439,7 @@ function DashboardView() {
     }
   };
 
-  if (isLoading) {
+  if (isLoadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-xl text-muted-foreground">Loading your ZipGroup dashboard...</p>
@@ -515,9 +517,7 @@ function DashboardView() {
             </DndContext>
           )}
         </main>
-        <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-          Found {pages.length} page(s) with link groups. Manage your ZipGroup configurations with ease.
-        </footer>
+         <AppFooter onCreateNewPage={handleCreateNewPage} />
       </div>
     </TooltipProvider>
   );
@@ -540,7 +540,9 @@ function ActualPageContent() {
     }
 
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
-      const sharedDataParam = searchParams.get('sharedData');
+      const currentUrlSearchParams = new URLSearchParams(window.location.search);
+      const sharedDataParam = currentUrlSearchParams.get('sharedData');
+
       if (sharedDataParam && !currentHashFromUrlRef.current) { // Only process if no hash
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
@@ -551,7 +553,12 @@ function ActualPageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clean URL only after hook has processed data, handled in useAppData
+          // Clean URL after processing
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.delete('sharedData');
+          // Preserve hash if any, though typically for sharedData there isn't one on initial load
+          router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
+
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -628,6 +635,7 @@ function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
+      // Share link will now have query param before hash
       const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}#${currentHash}`;
 
       await navigator.clipboard.writeText(shareUrl);
@@ -688,14 +696,16 @@ function ActualPageContent() {
   };
 
   useEffect(() => {
-    const queryGroupIdToOpen = searchParams.get('openGroupInNewWindow');
+    const groupIdToOpen = searchParams.get('openGroupInNewWindow');
     const cleanPathWithHash = currentHash ? `${pathname}#${currentHash}` : pathname;
-    const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
+    
+    if (groupIdToOpen && appData && !isLoading && currentHash) {
+      const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
+      console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
-    if (queryGroupIdToOpen && appData && !isLoading && currentHash) {
-      const group = appData.linkGroups.find(g => g.id === queryGroupIdToOpen);
-      console.log("[OpenInNewWindowEffect] Processing Group ID:", queryGroupIdToOpen, "Found group:", group);
-
+      // Always clear the param once processed or if group not found/empty
+      router.replace(cleanPathWithHash, { scroll: false });
+      console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
 
       if (group && group.urls.length > 0) {
         toast({
@@ -704,13 +714,8 @@ function ActualPageContent() {
           duration: 10000,
         });
 
-        router.replace(urlToClearParamsFrom, { scroll: false });
-        console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
-
-
         const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
         console.log("[OpenInNewWindowEffect] First URL:", firstUrlFull, "Other URLs:", otherUrlsFull);
-
 
         otherUrlsFull.forEach(url => {
           try {
@@ -740,12 +745,8 @@ function ActualPageContent() {
         }, 250);
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
-        console.log("[OpenInNewWindowEffect] Group empty, cleared URL param, current URL:", window.location.href);
       } else if (!group) {
-        toast({ title: "Group Not Found", description: `Could not find the group with ID "${queryGroupIdToOpen}".`, variant: "destructive" });
-        router.replace(urlToClearParamsFrom, { scroll: false });
-        console.log("[OpenInNewWindowEffect] Group not found, cleared URL param, current URL:", window.location.href);
+        toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
       }
     }
  }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
@@ -855,7 +856,7 @@ function ActualPageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview}
+                disabled={isReadOnlyPreview && !currentHash} // Only disable if it's a shared preview, not an unsaved pristine page
                 data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
@@ -930,7 +931,7 @@ function ActualPageContent() {
                       onDeleteGroup={handleDeleteGroup}
                       onOpenGroup={handleOpenGroup}
                       onOpenInNewWindow={handleOpenGroupInNewWindow}
-                      isReadOnlyPreview={false}
+                      isReadOnlyPreview={false} // This will be false for unsaved pristine pages too
                     />
                   </SortableContext>
                 </DndContext>
@@ -944,22 +945,7 @@ function ActualPageContent() {
             onSubmit={handleFormSubmit}
             initialData={editingGroup}
           />
-          <footer className="py-6 text-center text-sm text-muted-foreground">
-            <div className="flex items-center justify-center gap-1 flex-wrap px-2">
-              <span>Powered by </span>
-              <Button
-                variant="link"
-                onClick={createNewBlankPageAndRedirect}
-                className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
-              >
-                ZipGroup.link
-              </Button>
-              <span> by Ofek Gila & Gemini</span>
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 inline-block align-middle mx-1">
-                <path d="M12.586 3.707a1 1 0 00-1.172 0L8.068 7.5H4.5a1 1 0 000 2h3.568l-3.346 3.683a1 1 0 00.604 1.635h3.47L4.302 19.29a1 1 0 101.48 1.342L9.5 16.5h5l3.718 4.132a1 1 0 101.48-1.342l-4.494-4.493h3.47a1 1 0 00.605-1.635L15.432 9.5h3.568a1 1 0 000-2h-3.568l-3.346-3.793zM11 14.5V9.317l2-2.286v7.469h-2z"></path>
-              </svg>
-            </div>
-          </footer>
+          <AppFooter onCreateNewPage={createNewBlankPageAndRedirect} />
         </div>
       </TooltipProvider>
     </ThemeProvider>
@@ -1005,13 +991,13 @@ function PageRouter() {
   useEffect(() => {
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        setRenderMode('loading'); 
+        setRenderMode('loading');
         return;
       }
 
       const hash = window.location.hash.substring(1).split('?')[0];
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
-      const sharedData = currentUrlSearchParams.get('sharedData') || searchParams.get('sharedData');
+      const sharedData = currentUrlSearchParams.get('sharedData');
 
       if (pathname === '/' && !hash && !sharedData) {
         setRenderMode('dashboard');
@@ -1021,14 +1007,15 @@ function PageRouter() {
       setClientSideCheckDone(true);
     };
 
-    determineMode(); 
+    determineMode();
 
+    // Listen to hash changes to switch between dashboard and page view
     window.addEventListener('hashchange', determineMode);
 
     return () => {
       window.removeEventListener('hashchange', determineMode);
     };
-  }, [pathname, searchParams]); 
+  }, [pathname, searchParams]); // searchParams in deps to re-evaluate if ?sharedData appears
 
   if (!clientSideCheckDone && renderMode === 'loading') {
     return <PageSkeletonForSuspense />;
@@ -1037,6 +1024,7 @@ function PageRouter() {
   if (renderMode === 'dashboard') {
     return <DashboardView />;
   }
+  // Default to rendering the page content (for hash URLs or sharedData)
   return <ActualPageContent />;
 }
 
@@ -1048,4 +1036,3 @@ export default function Home() {
     </Suspense>
   );
 }
-
