@@ -6,16 +6,10 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppFooter } from "@/components/layout/app-footer";
 import { useAppData } from "@/hooks/use-app-data";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle } from "lucide-react"; // Renamed Home to HomeIcon to avoid conflict
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-
-// Dynamically import the view components
-const DashboardView = React.lazy(() =>
-  import('@/components/dashboard/dashboard-view').then(module => ({ default: module.DashboardView }))
-);
-const ActualPageContent = React.lazy(() =>
-  import('@/components/page-view/actual-page-content').then(module => ({ default: module.ActualPageContent }))
-);
+import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { ActualPageContent } from "@/components/page-view/actual-page-content";
 
 
 function PageSkeletonForSuspense() {
@@ -54,48 +48,23 @@ function PageSkeletonForSuspense() {
 function PageRouter() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { createNewBlankPageAndRedirect } = useAppData();
 
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
-  const redirectInitiatedRef = useRef(false);
-
-  useEffect(() => {
-    // Effect to handle initial redirect from '/' if no hash/sharedData
-    if (typeof window !== 'undefined' && pathname === '/' && !redirectInitiatedRef.current) {
-      const hash = window.location.hash.substring(1).split('?')[0];
-      const sharedData = searchParams.get('sharedData');
-
-      if (!hash && !sharedData) {
-        redirectInitiatedRef.current = true;
-        createNewBlankPageAndRedirect();
-        // No need to set renderMode here as the page will navigate away.
-        // The component will re-render, and 'loading' mode should cover the interim.
-        return;
-      }
-    }
-  }, [pathname, searchParams, createNewBlankPageAndRedirect]);
-
 
   useEffect(() => {
     // Effect to determine renderMode based on URL state (hash, sharedData)
     const determineMode = () => {
       if (typeof window === 'undefined') {
-        // On server, or before window is available, keep loading.
-        // Actual mode determination happens client-side.
         setRenderMode('loading');
         return;
       }
 
       const hash = window.location.hash.substring(1).split('?')[0];
-      const sharedData = searchParams.get('sharedData');
+      const sharedDataParam = searchParams.get('sharedData');
 
-      if (pathname === '/' && !hash && !sharedData) {
-        // This is the state where Dashboard should be shown.
-        // This condition implies the first effect did NOT initiate a redirect,
-        // or if it did, we are now evaluating after the redirect.
+      if (pathname === '/' && !hash && !sharedDataParam) {
         setRenderMode('dashboard');
       } else {
-        // We have a hash or sharedData, so it's a specific page.
         setRenderMode('page');
       }
     };
@@ -104,13 +73,13 @@ function PageRouter() {
 
     const handleHashChange = () => {
       determineMode();
-    }
+    };
     window.addEventListener('hashchange', handleHashChange);
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [pathname, searchParams]); // Re-run if pathname or searchParams change
+  }, [pathname, searchParams]);
 
 
   if (renderMode === 'loading') {
