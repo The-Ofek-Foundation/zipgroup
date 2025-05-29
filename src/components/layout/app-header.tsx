@@ -5,7 +5,7 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, HomeIcon, Share2 } from "lucide-react"; 
+import { Zap, HomeIcon, Share2, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePathname } from 'next/navigation';
@@ -16,9 +16,9 @@ interface AppHeaderProps {
   customPrimaryColor: string | undefined;
   onSetCustomPrimaryColor: (color?: string) => void;
   isReadOnlyPreview?: boolean;
-  onInitiateShare?: () => void; 
+  onInitiateShare?: () => void;
   canShareCurrentPage?: boolean;
-  joyrideProps?: Record<string, unknown>; 
+  joyrideProps?: Record<string, unknown>;
 }
 
 export function AppHeader({
@@ -37,19 +37,38 @@ export function AppHeader({
       <div className="container mx-auto flex h-16 items-center justify-between p-4">
         <div className="flex items-center gap-2">
           <Zap className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
+          <h1 className="text-2xl font-bold text-primary">
+            <span className="inline sm:hidden">ZG</span>
+            <span className="hidden sm:inline">ZipGroup</span>
+          </h1>
         </div>
         <div className="flex items-center gap-2" {...joyrideProps}>
           <Button asChild variant="outline" size="sm">
              <Link href="/">
               <span className="flex items-center gap-1.5">
-                <HomeIcon className="h-4 w-4"/> 
+                <HomeIcon className="h-4 w-4"/>
                 Home
               </span>
             </Link>
           </Button>
-          <Button variant="outline" onClick={onCreateNewPage} size="sm" disabled={isReadOnlyPreview && pathname !== '/sample'}>New Page</Button>
-          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={onCreateNewPage}
+                size="sm"
+                disabled={isReadOnlyPreview && pathname !== '/sample'}
+                aria-label="New Page"
+              >
+                <PlusCircle className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">New Page</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Create New Page</p>
+            </TooltipContent>
+          </Tooltip>
+
           {onInitiateShare && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -76,8 +95,8 @@ export function AppHeader({
             disabled={isReadOnlyPreview}
             joyrideProps={{ "data-joyride": "custom-color-picker" }}
           />
-          <ThemeSwitcher 
-            disabled={isReadOnlyPreview} 
+          <ThemeSwitcher
+            disabled={isReadOnlyPreview}
             joyrideProps={{ "data-joyride": "theme-switcher" }}
           />
         </div>
