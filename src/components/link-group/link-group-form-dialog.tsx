@@ -25,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 const linkGroupSchema = z.object({
   name: z.string().min(1, "Group name is required"),
   icon: z.string().min(1, "Icon name is required. Please pick one."),
-  urls: z.array(z.string().url("Invalid URL format")).min(1, "At least one URL is required"),
+  urls: z.array(z.string().min(1, "URL field cannot be empty. Please enter a web address.")).min(1, "At least one URL is required"),
 });
 
 type LinkGroupFormData = z.infer<typeof linkGroupSchema>;
@@ -150,5 +150,3 @@ export function LinkGroupFormDialog({
     </Dialog>
   );
 }
-
-    
