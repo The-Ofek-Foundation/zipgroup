@@ -3,24 +3,32 @@
 
 import type { AppData } from "@/lib/types";
 import type React from "react";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { hexToHslValues } from "@/lib/color-utils";
 
 type Theme = AppData['theme'];
 
 type ThemeProviderProps = {
   children: React.ReactNode;
-  appData: AppData | null; // Pass the whole appData object
-  onThemeChange: (theme: Theme) => void; // This is `setTheme` from `useAppData`
+  appData: AppData | null;
+  onThemeChange: (theme: Theme) => void;
 };
 
 type ThemeProviderState = {
-  theme: Theme; // This refers to light/dark
+  theme: Theme;
   setTheme: (theme: Theme) => void;
 };
 
+// Determine initial theme based on system preference or a default
+const getInitialTheme = (): Theme => {
+  if (typeof window !== 'undefined') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light'; // Fallback for SSR or non-browser environments
+};
+
 const initialState: ThemeProviderState = {
-  theme: "light", // Default, will be quickly overridden by appData
+  theme: getInitialTheme(),
   setTheme: () => null,
 };
 
@@ -29,33 +37,23 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 export function ThemeProvider({
   children,
   appData,
-  onThemeChange, // This is effectively useAppData().setTheme
+  onThemeChange,
   ...props
 }: ThemeProviderProps) {
-  // Determine the current light/dark theme from appData or system preference as fallback
-  const [effectiveTheme, setEffectiveTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-        return appData?.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    }
-    return 'light'; // Fallback for SSR, though this component is client-side
-  });
-
   useEffect(() => {
-    if (appData?.theme) {
-      setEffectiveTheme(appData.theme);
-    } else if (typeof window !== 'undefined') {
-      // If appData.theme is somehow null/undefined after load, fallback to system
-      setEffectiveTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (typeof window === 'undefined' || !appData) {
+      // If appData is null (still loading or error), we might apply a default or do nothing.
+      // For now, if appData is null, we won't change existing classes or styles.
+      // Initial theme class might be set by RootLayout or a system preference flicker.
+      return;
     }
-  }, [appData?.theme]);
-
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !appData) return;
 
     const root = window.document.documentElement;
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const themeToApply = appData.theme || systemTheme;
+
     root.classList.remove("light", "dark");
-    root.classList.add(effectiveTheme); // effectiveTheme is the light/dark state
+    root.classList.add(themeToApply);
 
     // Apply custom primary color
     if (appData.customPrimaryColor) {
@@ -66,12 +64,13 @@ export function ThemeProvider({
           root.style.setProperty('--primary', hslString);
           root.style.setProperty('--accent', hslString); // Sync accent with primary
 
-          // For --ring, let's make it slightly darker than primary
-          // The L value reduction might differ for light/dark, but for simplicity:
-          const ringL = Math.max(0, hslValues.l - 6); // 6% darker, ensure not negative
+          const ringL = Math.max(0, hslValues.l - 6);
           root.style.setProperty('--ring', `${hslValues.h} ${hslValues.s}% ${ringL}%`);
         } else {
-          throw new Error("Invalid HEX color for custom primary.");
+          // Invalid custom color, remove properties to revert to theme defaults
+          root.style.removeProperty('--primary');
+          root.style.removeProperty('--accent');
+          root.style.removeProperty('--ring');
         }
       } catch (e) {
         console.error("Failed to apply custom primary color:", e);
@@ -80,20 +79,20 @@ export function ThemeProvider({
         root.style.removeProperty('--ring');
       }
     } else {
+      // No custom color, remove properties to revert to theme defaults
       root.style.removeProperty('--primary');
       root.style.removeProperty('--accent');
       root.style.removeProperty('--ring');
     }
-  }, [effectiveTheme, appData]); // Re-run when light/dark theme or custom color changes
+  }, [appData]); // This effect now solely depends on the appData object instance.
 
-  // This function is called by ThemeSwitcher to change light/dark mode
-  const setTheme = (newTheme: Theme) => {
-    onThemeChange(newTheme); // This updates appData.theme via useAppData().setTheme
-  };
+  // Determine the theme to provide to context consumers
+  // Fallback to system theme if appData or appData.theme is not yet available
+  const currentThemeForContext = appData?.theme || getInitialTheme();
 
   const value = {
-    theme: effectiveTheme, // Provide the current light/dark theme
-    setTheme, // Provide the function to change light/dark theme
+    theme: currentThemeForContext,
+    setTheme: onThemeChange, // Pass through the setTheme function from useAppData
   };
 
   return (
