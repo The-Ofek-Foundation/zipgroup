@@ -70,10 +70,9 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 250ms ease', // Ensure transition is applied if transform is null initially
+    transition: transition || 'transform 250ms ease',
   };
 
-  // Clicks on buttons should not initiate a drag
   const stopPropagation = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
@@ -82,26 +81,23 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes} // Apply dnd attributes to the root for full card dragging
+      {...listeners}  // Apply dnd listeners to the root
       className={cn(
-        "touch-manipulation relative", // Added relative for absolute positioning of drag handle
-        isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary" : "z-auto"
+        "touch-manipulation", 
+        isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "z-auto cursor-grab"
       )}
     >
-      {/* Drag handle button positioned at top-right of the card */}
-       <Button
-        variant="ghost"
-        size="icon"
-        {...attributes} // Spread DND attributes for dragging
-        {...listeners} // Spread DND listeners for drag initiation
-        className="absolute top-1 right-1 z-10 cursor-grab active:cursor-grabbing opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity hidden md:inline-flex"
-        aria-label="Drag to reorder page"
-        onPointerDown={stopPropagation} // Allow button interaction without drag starting on the handle itself
-      >
-        <GripVertical className="h-5 w-5" />
-      </Button>
       <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col h-full">
         <CardHeader className="pb-4">
-          <Link href={`/#${page.hash}`} className="block group" onClick={stopPropagation} onKeyDown={stopPropagation} tabIndex={0}>
+          <Link 
+            href={`/#${page.hash}`} 
+            className="block group" 
+            onClick={stopPropagation} 
+            onPointerDown={stopPropagation} 
+            onKeyDown={stopPropagation} // Allow keyboard focus without drag
+            tabIndex={0} // Make focusable
+          >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
               {page.title}
             </CardTitle>
@@ -142,7 +138,14 @@ function SortablePageCardItem({ page, onDelete }: SortablePageCardItemProps) {
         <CardFooter className="pt-4 border-t">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="w-full" aria-label={`Delete page ${page.title}`} onPointerDown={stopPropagation} onClick={stopPropagation}>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="w-full" 
+                aria-label={`Delete page ${page.title}`} 
+                onPointerDown={stopPropagation} // Crucial for button clickability
+                onClick={stopPropagation} // Also stop click if needed
+              >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
             </AlertDialogTrigger>
@@ -203,7 +206,6 @@ export default function DashboardPage() {
 
               if (!parsedData.linkGroups || parsedData.linkGroups.length === 0) {
                 localStorage.removeItem(key); 
-                // Also remove from initialStoredOrder if it exists there
                 initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
                 continue; 
               }
@@ -223,7 +225,6 @@ export default function DashboardPage() {
         }
       }
 
-      // Reconcile initialStoredOrder with actually existing pages
       const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
       const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
       
@@ -231,7 +232,6 @@ export default function DashboardPage() {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
 
-      // Sort pages: first by validStoredOrder, then by lastModified (newest first), then by title
       const pageMap = new Map(allLoadedPages.map(p => [p.hash, p]));
       const finalPages: StoredPage[] = [];
       const processedHashes = new Set<string>();
@@ -368,5 +368,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
