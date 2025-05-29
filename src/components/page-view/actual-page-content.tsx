@@ -46,24 +46,26 @@ export function ActualPageContent() {
 
 
   useEffect(() => {
+    // This effect specifically handles the initial parsing of 'sharedData' from URL
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const currentUrlSearchParams = new URLSearchParams(window.location.search);
       const sharedDataParam = currentUrlSearchParams.get('sharedData');
 
-      if (sharedDataParam && !window.location.hash) {
+      if (sharedDataParam && !window.location.hash) { // Only process if no hash (true shared link)
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData);
+          setInitialSharedData(parsedData); // This will be passed to useAppData
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
             duration: 7000,
           });
+          // Clean the URL *after* initialSharedData is set and toast is shown.
+          // The re-render with new initialSharedData will trigger useAppData to update.
           const currentUrl = new URL(window.location.href);
           currentUrl.searchParams.delete('sharedData');
           router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
-
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -76,9 +78,9 @@ export function ActualPageContent() {
            router.replace(currentUrl.pathname + currentUrl.search + currentUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true);
+      setSharedDataProcessed(true); // Mark as processed even if no sharedData was found
     }
-  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
+  }, [searchParams, router, pathname, toast, sharedDataProcessed]); // Depends on searchParams
 
   const {
     isLoading,
@@ -90,7 +92,7 @@ export function ActualPageContent() {
     currentHash,
     setCustomPrimaryColor,
     createNewBlankPageAndRedirect,
-  } = useAppData(initialSharedData);
+  } = useAppData(initialSharedData); // Pass initialSharedData here
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -140,7 +142,9 @@ export function ActualPageContent() {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}#${currentHash}`;
+      // Ensure pathname is just '/' for root-level pages
+      const sharePathname = pathname === '/sample' ? '/' : pathname; // Should be '/' when this component is used
+      const shareUrl = `${window.location.origin}${sharePathname}?sharedData=${encodedJson}`; // No hash
 
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -206,6 +210,7 @@ export function ActualPageContent() {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
 
+      // Clear URL param first
       router.replace(urlToClearParamsFrom, { scroll: false });
       console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
 
@@ -221,7 +226,7 @@ export function ActualPageContent() {
 
         otherUrlsFull.forEach(url => {
           try {
-            new URL(url); 
+            new URL(url);
             const newTab = window.open(url, '_blank');
             if (!newTab) {
               console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
@@ -237,7 +242,7 @@ export function ActualPageContent() {
 
         setTimeout(() => {
           try {
-            new URL(firstUrlFull); 
+            new URL(firstUrlFull);
             console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
             window.location.replace(firstUrlFull);
           } catch (e) {
@@ -276,7 +281,7 @@ export function ActualPageContent() {
   };
 
   if (isLoading || !appData || !sharedDataProcessed) {
-    return null; 
+    return null;
   }
 
   const handleAddGroup = () => {
@@ -317,11 +322,12 @@ export function ActualPageContent() {
     const newHash = createNewPageFromAppData();
     if (newHash) {
       toast({
-        title: isPristineOrSharedPage && initialSharedData ? "Shared Page Saved!" : "Page Saved!",
-        description: isPristineOrSharedPage && initialSharedData
+        title: initialSharedData ? "Shared Page Saved!" : "Page Saved!", // This distinction is fine
+        description: initialSharedData
           ? "The shared page is now part of your home."
           : "This page is now saved to your home.",
       });
+      // No router.push needed here, useAppData's createNewPageFromAppData handles it
     } else {
       toast({
         title: "Save Failed",
@@ -381,7 +387,7 @@ export function ActualPageContent() {
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
                     ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your home to make it your own."
-                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home to make it your own!"
+                    : "Customize your new page's title, theme, and link groups below. When you're ready, save it to start using your new ZipGroup page!"
                   }
                 </p>
                 <Button
@@ -397,8 +403,8 @@ export function ActualPageContent() {
                   )}
                   {initialSharedData ? "Save This Shared Page to My Home" : "Save This Page to My Home"}
                 </Button>
-                 {!initialSharedData && ( 
-                  <Button variant="outline" size="lg" asChild className="mt-4 ml-3">
+                 {!initialSharedData && (
+                  <Button variant="outline" size="lg" asChild className="mt-4 sm:mt-0 sm:ml-3">
                      <Link href="/sample"><HelpCircle className="mr-2 h-5 w-5" /> Quick Tour</Link>
                   </Button>
                 )}
@@ -409,11 +415,11 @@ export function ActualPageContent() {
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup} 
-                  onEditGroup={handleEditGroup} 
-                  onDeleteGroup={handleDeleteGroup} 
+                  onAddGroup={handleAddGroup}
+                  onEditGroup={handleEditGroup}
+                  onDeleteGroup={handleDeleteGroup}
                   onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow} 
+                  onOpenInNewWindow={handleOpenGroupInNewWindow}
                   isReadOnlyPreview={true}
                 />
               ) : (
@@ -454,5 +460,3 @@ export function ActualPageContent() {
     </ThemeProvider>
   );
 }
-
-    

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppData } from "@/hooks/use-app-data";
 import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
@@ -34,13 +34,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import type { AppData } from "@/lib/types";
 import { AppFooter } from "@/components/layout/app-footer";
-import { AppHeader } from "@/components/layout/app-header"; // Import AppHeader
+import { AppHeader } from "@/components/layout/app-header";
 
 const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
 const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
 const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // For /sample page joyride
 
 interface StoredPage {
   hash: string;
@@ -73,10 +73,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
     transition: transition || 'transform 250ms ease',
   };
 
-  const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
-     if (e.type === "pointerdown") { 
-      e.stopPropagation();
-    }
+  const stopPropagationForButtons = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
+    e.stopPropagation();
   };
 
   const handleDeleteConfirm = () => {
@@ -102,9 +100,9 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
           <Link
             href={`/#${page.hash}`}
             className="block group"
-            onClick={stopPropagationForEvents}
-            onPointerDown={stopPropagationForEvents}
-            onKeyDown={stopPropagationForEvents}
+            onClick={stopPropagationForButtons}
+            onPointerDown={stopPropagationForButtons} // Stop propagation for link click
+            onKeyDown={stopPropagationForButtons}
             tabIndex={0}
           >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
@@ -150,8 +148,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={(e) => { stopPropagationForEvents(e); onShare(page.hash); }}
-                  onPointerDown={stopPropagationForEvents}
+                  onClick={(e) => { stopPropagationForButtons(e); onShare(page.hash); }}
+                  onPointerDown={stopPropagationForButtons}
                   aria-label={`Share page ${page.title}`}
                 >
                   <Share2 className="mr-2 h-4 w-4" /> Share
@@ -164,14 +162,16 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
 
             <Tooltip>
               <TooltipTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    aria-label={`Delete page ${page.title}`}
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                  </Button>
+                {/* The Button is the direct child that DialogTrigger needs for asChild */}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  aria-label={`Delete page ${page.title}`}
+                  onClick={() => setIsDeleteDialogOpen(true)} // No stopPropagation for DialogTrigger
+                  // onPointerDown is NOT stopped for DialogTrigger to allow dnd-kit activation constraints
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Delete page</p>
@@ -200,12 +200,12 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData(); // Get this from useAppData
+  const { createNewBlankPageAndRedirect } = useAppData();
 
 
   const {
-    themeMode: dashboardThemeMode, // Renamed to avoid conflict
-    customPrimaryColor: dashboardCustomPrimaryColor, // Renamed
+    themeMode: dashboardThemeMode,
+    customPrimaryColor: dashboardCustomPrimaryColor,
     isLoading: isThemeLoading,
     setDashboardThemeMode,
     setDashboardCustomPrimaryColor
@@ -223,8 +223,7 @@ export function DashboardView() {
         if (orderJson) {
           initialStoredOrder = JSON.parse(orderJson);
         }
-      } catch (error)
-        {
+      } catch (error) {
         console.error("Failed to parse page order from local storage:", error);
         initialStoredOrder = [];
       }
@@ -233,7 +232,7 @@ export function DashboardView() {
         DASHBOARD_ORDER_KEY,
         DASHBOARD_THEME_MODE_KEY,
         DASHBOARD_CUSTOM_COLOR_KEY,
-        JOYRIDE_SAMPLE_TAKEN_KEY 
+        JOYRIDE_SAMPLE_TAKEN_KEY
       ];
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -241,7 +240,7 @@ export function DashboardView() {
         if (
           key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
-          !excludedKeys.includes(key) 
+          !excludedKeys.includes(key)
         ) {
           try {
             const storedData = localStorage.getItem(key);
@@ -249,14 +248,16 @@ export function DashboardView() {
               const parsedData = JSON.parse(storedData) as AppData;
               const hash = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
 
+              // Validate if parsedData looks like AppData
               if (typeof parsedData.pageTitle !== 'string' || !Array.isArray(parsedData.linkGroups)) {
-                console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
+                console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData (parsed to: ${typeof parsedData}).`);
                 continue;
               }
 
+
               if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `New ZipGroup Page`) {
                 localStorage.removeItem(key);
-                initialStoredOrder = initialStoredOrder.filter(h => h !== hash);
+                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); // Also remove from order if it was there
                 continue;
               }
 
@@ -298,11 +299,11 @@ export function DashboardView() {
         .filter(p => !processedHashes.has(p.hash))
         .sort((a, b) => {
             if (a.lastModified && b.lastModified) {
-                return b.lastModified - a.lastModified;
+                return b.lastModified - a.lastModified; // Newest first
             }
             if (a.lastModified) return -1;
             if (b.lastModified) return 1;
-            return a.title.localeCompare(b.title);
+            return a.title.localeCompare(b.title); // Fallback to title sort
         });
 
       setPages([...finalPages, ...remainingPages]);
@@ -380,7 +381,7 @@ export function DashboardView() {
 
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
-        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}#${hash}`;
+        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`; // No hash in share URL
 
         await navigator.clipboard.writeText(shareUrl);
         toast({
@@ -433,8 +434,21 @@ export function DashboardView() {
 
   if (isLoadingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-xl text-muted-foreground">Loading your ZipGroup home...</p>
+      <div className="min-h-screen flex flex-col">
+        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
+          <div className="container mx-auto flex h-16 items-center justify-between p-4">
+             <div className="flex items-center gap-2">
+                <PageHomeIcon className="h-7 w-7 text-primary" />
+                <h1 className="text-2xl font-bold">ZipGroup</h1>
+              </div>
+             <div className="flex items-center gap-2">
+                {/* Skeletons for theme controls */}
+             </div>
+          </div>
+        </header>
+        <main className="flex-grow container mx-auto p-4 md:p-8 flex items-center justify-center">
+            <p className="text-xl text-muted-foreground">Loading your ZipGroup home...</p>
+        </main>
       </div>
     );
   }
@@ -448,26 +462,26 @@ export function DashboardView() {
             onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
             themeMode={dashboardThemeMode}
             onSetThemeMode={setDashboardThemeMode}
-            showHomePageLink={false} 
+            showHomePageLink={false}
             showSamplePageLink={true}
             showShareButton={false}
         />
         <main className="flex-grow container mx-auto p-4 md:p-8">
           {pages.length === 0 ? (
             <div className="text-center py-16">
-              <FileText className="mx-auto h-16 w-16 text-primary mb-6" />
+              <PageHomeIcon className="mx-auto h-16 w-16 text-primary mb-6" />
               <h2 className="mt-2 text-2xl font-semibold text-foreground">No ZipGroup Pages Yet</h2>
               <p className="mt-2 text-lg text-muted-foreground">
                 Looks like your home page is empty. Let's create your first page!
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
                 <Button onClick={handleCreateNewPage} size="lg">
-                  <PlusCircle className="mr-2 h-5 w-5" /> 
+                  <PlusCircle className="mr-2 h-5 w-5" />
                   Create Your First Page
                 </Button>
                  <Button variant="outline" size="lg" asChild>
                   <Link href="/sample">
-                    <BookOpenCheck className="mr-2 h-5 w-5" /> 
+                    <BookOpenCheck className="mr-2 h-5 w-5" />
                     Explore Sample Page
                   </Link>
                 </Button>
