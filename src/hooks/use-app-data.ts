@@ -28,6 +28,7 @@ export function useAppData() {
   }, [currentHash]);
 
   const loadData = useCallback((hash: string): AppData | null => {
+    if (!hash) return null; // Do not attempt to load with an empty hash
     try {
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
       if (storedData) {
@@ -48,6 +49,7 @@ export function useAppData() {
   }, []);
 
   const saveData = useCallback((hash: string, data: AppData) => {
+    if (!hash) return; // Do not attempt to save with an empty hash
     try {
       localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(data));
     } catch (error)      {
@@ -56,19 +58,20 @@ export function useAppData() {
   }, []);
 
   useEffect(() => {
-    const initialHash = window.location.hash.substring(1);
+    const hashWithOptionalQuery = window.location.hash.substring(1);
+    const [initialHashValueFromUrl] = hashWithOptionalQuery.split('?'); // Get only the part before '?'
+
     let dataToLoad: AppData;
-    let hashToUse = initialHash;
+    let hashToUse = initialHashValueFromUrl;
 
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
-    if (initialHash) {
-      const loaded = loadData(initialHash);
+    if (hashToUse) {
+      const loaded = loadData(hashToUse);
       if (loaded) {
         dataToLoad = { ...loaded, theme: loaded.theme || systemTheme };
       } else {
         // No data for this hash, create new default data
-        hashToUse = initialHash; // Keep the hash from the URL
         dataToLoad = { 
           ...defaultAppDataBase, 
           pageTitle: `ZipGroup Page ${hashToUse}`, 
@@ -87,7 +90,9 @@ export function useAppData() {
         customPrimaryColor: undefined 
       };
       saveData(hashToUse, dataToLoad);
-      window.history.replaceState(null, '', `#${hashToUse}`);
+      // Construct the new URL carefully to only update the hash part
+      const currentPath = window.location.pathname + window.location.search; // Keep existing path and query params
+      window.history.replaceState(null, '', `${currentPath}#${hashToUse}`);
     }
     
     setAppData(dataToLoad);
@@ -95,10 +100,12 @@ export function useAppData() {
     setIsLoading(false);
 
     const handleHashChange = () => {
-      const newHash = window.location.hash.substring(1);
-      if (newHash && newHash !== currentHashRef.current) { 
+      const newHashWithOptionalQuery = window.location.hash.substring(1);
+      const [newHashValue] = newHashWithOptionalQuery.split('?');
+
+      if (newHashValue && newHashValue !== currentHashRef.current) { 
         setIsLoading(true);
-        const newData = loadData(newHash);
+        const newData = loadData(newHashValue);
         const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         if (newData) {
           setAppData({ ...newData, theme: newData.theme || currentSystemTheme });
@@ -106,27 +113,33 @@ export function useAppData() {
           // Navigated to a hash with no data, create new default data for this hash
           const freshData: AppData = { 
             ...defaultAppDataBase, 
-            pageTitle: `ZipGroup Page ${newHash}`, 
+            pageTitle: `ZipGroup Page ${newHashValue}`, 
             theme: currentSystemTheme, 
             customPrimaryColor: undefined 
           };
-          saveData(newHash, freshData);
+          saveData(newHashValue, freshData);
           setAppData(freshData);
         }
-        setCurrentHash(newHash);
+        setCurrentHash(newHashValue);
         setIsLoading(false);
+      } else if (!newHashValue && currentHashRef.current) {
+        // Hash was removed, potentially re-generate or decide on a default behavior
+        // For now, let's assume this scenario means we might need to create a new page
+        // or redirect. This logic might need further refinement based on desired UX.
+        // console.log("Hash removed from URL.");
+        // Potentially call createNewPage() or redirect to a default state.
       }
     };
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
 
-  }, [loadData, saveData]);
+  }, [loadData, saveData, pathname]); // Added pathname to deps for replaceState
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
       if (!prevData || !currentHashRef.current) {
-          console.warn("Attempted to update appData before it was fully initialized or hash was available.");
+          // console.warn("Attempted to update appData before it was fully initialized or hash was available.");
           return prevData; 
       }
       const newData = { ...prevData, ...updates };
@@ -162,8 +175,10 @@ export function useAppData() {
       customPrimaryColor: appData?.customPrimaryColor 
     };
     saveData(newHash, newPageData);
-    window.location.hash = newHash; 
-  }, [saveData, appData?.theme, appData?.customPrimaryColor]);
+    // Construct the new URL carefully to only update the hash part
+    const currentPath = window.location.pathname + window.location.search;
+    window.location.href = `${currentPath}#${newHash}`; // Use href to trigger hashchange and reload
+  }, [saveData, appData?.theme, appData?.customPrimaryColor, pathname]);
 
 
   return {

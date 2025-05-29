@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { generateRandomHash } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_";
+const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; // Matches useAppData for consistency
 
 function PageContent() {
   const {
@@ -28,12 +28,12 @@ function PageContent() {
     setLinkGroups,
     setTheme,
     createNewPage,
-    currentHash,
+    currentHash, // This should now be clean (no query params) from useAppData
     setCustomPrimaryColor,
   } = useAppData();
   
   const { toast } = useToast();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams(); // For reading query parameters
   const router = useRouter();
   const pathname = usePathname();
 
@@ -77,8 +77,8 @@ function PageContent() {
       return;
     }
     try {
-      // Construct URL without query parameters
-      const pageUrl = `${window.location.origin}${window.location.pathname}#${currentHash}`;
+      // Construct URL without query parameters, using the clean currentHash
+      const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
         title: "URL Copied!",
@@ -98,17 +98,20 @@ function PageContent() {
     if (!appData) return;
 
     const newHash = generateRandomHash();
+    // Ensure localStorage key is clean (though generateRandomHash should be)
+    const cleanNewHash = newHash.split('?')[0]; 
+
     const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
     const newPageData: AppData = {
       linkGroups: [],
-      pageTitle: `ZipGroup Page ${newHash}`,
+      pageTitle: `ZipGroup Page ${cleanNewHash}`,
       theme: appData.theme || currentSystemTheme,
       customPrimaryColor: appData.customPrimaryColor,
     };
 
     try {
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${cleanNewHash}`, JSON.stringify(newPageData));
     } catch (error) {
       console.error("Failed to save data for new tab:", error);
       toast({
@@ -119,12 +122,12 @@ function PageContent() {
       return;
     }
 
-    const newUrl = `${window.location.origin}${window.location.pathname}#${newHash}`;
+    const newUrl = `${window.location.origin}${pathname}#${cleanNewHash}`;
     window.open(newUrl, '_blank');
   };
 
   const handleOpenGroupInNewWindow = (groupToOpen: LinkGroup) => {
-    if (!currentHash) {
+    if (!currentHash) { // currentHash from useAppData should be clean
       toast({ title: "Error", description: "Current page details not available.", variant: "destructive" });
       return;
     }
@@ -134,7 +137,8 @@ function PageContent() {
     }
 
     const newWindowUrl = `${window.location.origin}${pathname}#${currentHash}?openGroupInNewWindow=${groupToOpen.id}`;
-    window.open(newWindowUrl, '_blank', 'noopener,noreferrer');
+    // Add window features to encourage opening in a new window
+    window.open(newWindowUrl, '_blank', 'noopener,noreferrer,width=800,height=600'); 
     
     toast({
       title: "Opening in New Window...",
@@ -145,12 +149,12 @@ function PageContent() {
 
   useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
-    if (groupIdToOpen && appData && !isLoading) {
+    if (groupIdToOpen && appData && !isLoading && currentHash) { // Ensure currentHash is also available
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
 
-      // Clear the query parameter to prevent re-triggering on refresh of the helper tab
-      const newUrl = `${pathname}#${currentHash}`;
-      router.replace(newUrl, { scroll: false }); // Use router.replace to avoid history stack
+      // Clear the query parameter. Ensure currentHash is clean.
+      const newUrl = `${pathname}#${currentHash}`; 
+      router.replace(newUrl, { scroll: false }); 
 
       if (group && group.urls.length > 0) {
         toast({
@@ -163,7 +167,7 @@ function PageContent() {
 
         otherUrls.forEach(url => {
           try {
-            new URL(url); // Validate URL
+            new URL(url); 
             window.open(url, '_blank');
           } catch (e) {
             console.warn(`Invalid URL skipped in new window: ${url}`);
@@ -172,8 +176,7 @@ function PageContent() {
         });
         
         try {
-          new URL(firstUrl); // Validate first URL
-          // Delay slightly to allow toast to be seen and other tabs to initiate opening
+          new URL(firstUrl); 
           setTimeout(() => {
              window.location.replace(firstUrl);
           }, 1500);
@@ -184,7 +187,7 @@ function PageContent() {
 
       } else if (group && group.urls.length === 0) {
         toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-      } else if (group === undefined) { // Group not found
+      } else if (group === undefined) { 
         toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
       }
     }
@@ -196,8 +199,8 @@ function PageContent() {
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <Skeleton className="h-8 w-32" /> {/* Logo Placeholder */}
-            <div className="flex items-center gap-2"> {/* Controls Placeholder */}
+            <Skeleton className="h-8 w-32" /> 
+            <div className="flex items-center gap-2"> 
               <Skeleton className="h-9 w-24" />
               <Skeleton className="h-9 w-9 rounded-md" />
               <Skeleton className="h-9 w-9 rounded-md" />
@@ -205,7 +208,7 @@ function PageContent() {
           </div>
         </header>
         <main className="flex-grow container mx-auto p-4 md:p-8">
-           <div className="mb-8 text-center"> {/* Page Title Placeholder */}
+           <div className="mb-8 text-center"> 
             <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
           </div>
           <div className="flex justify-end mb-6">
@@ -239,7 +242,6 @@ function PageContent() {
 
   const handleOpenGroup = (group: LinkGroup) => {
     // This function is primarily for the toast in LinkGroupCard, actual opening happens there.
-    // Could be enhanced if central logic for opening is needed here.
   };
 
   const handleFormSubmit = (groupData: LinkGroup) => {
@@ -397,4 +399,3 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
-
