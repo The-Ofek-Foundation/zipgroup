@@ -52,15 +52,17 @@ function PageContent() {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData);
+          setInitialSharedData(parsedData); // This will be passed to useAppData
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
+          // Clean the URL immediately after processing sharedData
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
-          router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
+          // Replace history state without triggering a re-fetch or full navigation, just clean URL
+          window.history.replaceState(null, '', newUrl.pathname + newUrl.search + newUrl.hash);
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -68,7 +70,8 @@ function PageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-          router.replace(pathname + window.location.hash, { scroll: false }); 
+          const currentCleanUrl = window.location.pathname + window.location.hash;
+          window.history.replaceState(null, '', currentCleanUrl);
         }
       }
       setSharedDataProcessed(true); 
@@ -212,6 +215,7 @@ function PageContent() {
       return;
     }
     
+    // Construct URL with query param BEFORE hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -259,11 +263,11 @@ function PageContent() {
         });
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
         
-        const [firstUrl, ...otherUrls] = group.urls;
-        
         router.replace(urlToClearParamsFrom, { scroll: false }); 
         console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
-
+        
+        const [firstUrl, ...otherUrls] = group.urls;
+        
         otherUrls.forEach(url => {
           try {
             new URL(url); 
@@ -328,8 +332,11 @@ function PageContent() {
     }
   };
   
-  const isPristineOrSharedPage = !currentHash && appData;
-  const isReadOnlyPreview = isPristineOrSharedPage;
+  // A page is considered a "pristine page" if it has no currentHash.
+  // A "read-only preview" is specifically when it's a pristine page *and* it came from initialSharedData.
+  // An interactive sample page is when it's pristine but *not* from initialSharedData.
+  const isPristinePage = !currentHash && appData;
+  const isReadOnlyPreview = isPristinePage && !!initialSharedData; // Only shared previews are read-only
 
 
   if (isLoading || !appData || !sharedDataProcessed) {
@@ -425,12 +432,12 @@ function PageContent() {
             onCreateNewPage={createNewBlankPage} 
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={isReadOnlyPreview}
+            isReadOnlyPreview={isReadOnlyPreview} // Read-only if it's a SHARED page preview
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isReadOnlyPreview}
+            canShareCurrentPage={!!currentHash && !isReadOnlyPreview} // Can share if saved and not a shared preview
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
-            <div className="mb-6 text-center"> {/* Reduced mb from 8 to 6 */}
+            <div className="mb-6 text-center"> 
               <Input
                 type="text"
                 value={localPageTitle}
@@ -440,7 +447,7 @@ function PageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview}
+                disabled={isReadOnlyPreview} // Title is disabled only for shared previews
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -450,7 +457,7 @@ function PageContent() {
               )}
             </div>
 
-            {isPristineOrSharedPage && (
+            {isPristinePage && ( // This block shows for both interactive sample and shared preview
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
@@ -459,7 +466,7 @@ function PageContent() {
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
                   {initialSharedData
                     ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own and enable editing."
-                    : "Customize your new page's title and theme using the controls above. Once you're ready, save it to start adding link groups below."}
+                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"}
                 </p>
                 <Button onClick={handleSavePristineOrSharedPage} size="lg" disabled={isSavingNewPage}>
                   {isSavingNewPage ? (
@@ -467,22 +474,17 @@ function PageContent() {
                   ) : (
                     <Save className="mr-2 h-5 w-5" />
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Dashboard" : "Save and Start Using This Page"}
+                  {initialSharedData ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
                 </Button>
-                {!initialSharedData && (
-                   <p className="text-sm text-muted-foreground mt-4">
-                    After saving, you'll be able to add and organize your link groups below.
-                  </p>
-                )}
-                 {initialSharedData && (
-                   <p className="text-sm text-muted-foreground mt-4">
-                    Saving will create a new copy in your dashboard, allowing you to edit and manage it.
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground mt-4">
+                  {initialSharedData 
+                    ? "Saving will create a new copy in your dashboard, allowing you to edit and manage it."
+                    : "After saving, you'll get a unique URL for this page."}
+                </p>
               </div>
             )}
             
-            {appData && !isReadOnlyPreview && (
+            {appData && !isReadOnlyPreview && ( // If NOT read-only (i.e., it's interactive sample or a saved page)
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -499,12 +501,12 @@ function PageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={isReadOnlyPreview}
+                    isReadOnlyPreview={false} // Explicitly false for interactivity
                   />
                 </SortableContext>
               </DndContext>
             )}
-             {appData && isReadOnlyPreview && (
+             {appData && isReadOnlyPreview && ( // If it IS a read-only shared preview
                 <LinkGroupList
                     groups={appData.linkGroups}
                     onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
@@ -512,7 +514,7 @@ function PageContent() {
                     onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupList
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={isReadOnlyPreview}
+                    isReadOnlyPreview={true} // Explicitly true for read-only
                   />
              )}
           </main>
