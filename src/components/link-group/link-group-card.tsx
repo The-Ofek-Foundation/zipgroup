@@ -28,26 +28,31 @@ interface LinkGroupCardProps {
   onOpenInNewWindow: (group: LinkGroup) => void;
   isDragging?: boolean;
   isReadOnlyPreview?: boolean;
+  joyrideContainerProps?: Record<string, unknown>;
   joyrideEditButtonProps?: Record<string, unknown>;
   joyrideDeleteButtonProps?: Record<string, unknown>;
 }
 
-export function LinkGroupCard({ 
-  group, 
-  onOpen, 
-  onEdit, 
-  onDelete, 
-  onOpenInNewWindow, 
+export function LinkGroupCard({
+  group,
+  onOpen,
+  onEdit,
+  onDelete,
+  onOpenInNewWindow,
   isDragging,
   isReadOnlyPreview = false,
+  joyrideContainerProps = {},
   joyrideEditButtonProps = {},
   joyrideDeleteButtonProps = {},
 }: LinkGroupCardProps) {
   const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const stopPropagationForEvents = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
-    e.stopPropagation();
+  const stopPropagationForRegularButtons = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
+    // Only stop propagation if not read-only, to allow dnd-kit activation constraints to work for dialogs
+    if (!isReadOnlyPreview) {
+      e.stopPropagation();
+    }
   };
 
   const handleOpenLinks = () => {
@@ -81,7 +86,7 @@ export function LinkGroupCard({
   };
 
   const handleOpenInNewWindowClick = () => {
-    if (isReadOnlyPreview) return; // Should not be callable if button is disabled
+    if (isReadOnlyPreview) return;
     if (group.urls.length === 0) {
       toast({
         title: "No URLs",
@@ -94,7 +99,7 @@ export function LinkGroupCard({
   };
 
   return (
-    <Card className={cn(
+    <Card {...joyrideContainerProps} className={cn(
       "flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300",
       isDragging && "ring-2 ring-primary shadow-2xl opacity-75 z-50"
     )}>
@@ -127,8 +132,8 @@ export function LinkGroupCard({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
-                        onClick={(e) => { stopPropagationForEvents(e); handleOpenLinks(); }}
-                        onPointerDown={stopPropagationForEvents}
+                        onClick={handleOpenLinks}
+                        onPointerDown={stopPropagationForRegularButtons}
                         className="justify-center group overflow-hidden"
                         variant="default"
                     >
@@ -143,8 +148,8 @@ export function LinkGroupCard({
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
-                        onClick={(e) => { stopPropagationForEvents(e); handleOpenInNewWindowClick(); }}
-                        onPointerDown={stopPropagationForEvents}
+                        onClick={handleOpenInNewWindowClick}
+                        onPointerDown={stopPropagationForRegularButtons}
                         className="justify-center group overflow-hidden"
                         variant="outline"
                         disabled={isReadOnlyPreview}
@@ -161,11 +166,11 @@ export function LinkGroupCard({
         <div className="flex flex-row items-center gap-x-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={(e) => { if (isReadOnlyPreview) return; stopPropagationForEvents(e); onEdit(group); }}
-                onPointerDown={stopPropagationForEvents}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={(e) => { if (isReadOnlyPreview) return; stopPropagationForRegularButtons(e); onEdit(group); }}
+                onPointerDown={stopPropagationForRegularButtons}
                 aria-label="Edit group"
                 disabled={isReadOnlyPreview}
                 {...joyrideEditButtonProps}
@@ -179,39 +184,21 @@ export function LinkGroupCard({
           </Tooltip>
 
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <DialogTrigger asChild>
-                <Button 
-                  variant="destructive" 
-                  size="icon" 
-                  aria-label="Delete group"
-                  disabled={isReadOnlyPreview}
-                  onClick={() => { if (!isReadOnlyPreview) setIsDeleteDialogOpen(true);}} // onPointerDown removed for dialog trigger
-                  {...joyrideDeleteButtonProps}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-            </DialogTrigger>
-            <Tooltip> 
+            <Tooltip>
               <TooltipTrigger asChild>
-                {/* This is a bit of a workaround: The actual trigger is above. This is for the tooltip to show. */}
-                {/* Radix Tooltip often needs a direct child as a trigger. */}
-                {/* Alternatively, conditionally render Tooltip only if button is not trigger, or wrap DialogTrigger in a span. */}
-                {/* For simplicity, we'll just have the tooltip around a visually similar button that's effectively a label here. */}
-                {/* A better approach might be to use a more complex Radix composition if tooltips on DialogTriggers are essential and problematic. */}
-                {/* OR simply rely on the aria-label for accessibility and don't wrap DialogTrigger in TooltipTrigger. */}
-                {/* For this case, let's keep it simple: Tooltip is on the button that opens the dialog. */}
-                 <div className="inline-block"> {/* For tooltip to anchor correctly with a disabled button */}
-                    <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        aria-label="Delete group"
-                        disabled={isReadOnlyPreview}
-                        className={isReadOnlyPreview ? "pointer-events-none" : ""} // Ensure it's not clickable if read-only
-                        tabIndex={-1} // Not focusable if it's just for tooltip on a disabled state
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
-                 </div>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    aria-label="Delete group"
+                    disabled={isReadOnlyPreview}
+                    // No onClick needed here for opening, DialogTrigger handles it
+                    // No onPointerDown needed here if dnd-kit activation constraint is used
+                    {...joyrideDeleteButtonProps}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Delete group</p>
