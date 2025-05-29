@@ -17,6 +17,21 @@ import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  rectSortingStrategy, // Using rectSortingStrategy for grid layout
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
 
 const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_"; 
 
@@ -35,7 +50,7 @@ function PageContent() {
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams(); // For reading standard query parameters
+  const searchParams = useSearchParams(); 
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -77,7 +92,6 @@ function PageContent() {
       return;
     }
     try {
-      // Ensure only the path and hash are copied, no query params
       const pageUrl = `${window.location.origin}${pathname}#${currentHash}`;
       await navigator.clipboard.writeText(pageUrl);
       toast({
@@ -150,7 +164,7 @@ function PageContent() {
             <p className="mt-2">The new window will then open all links from the group "{groupToOpen.name}".</p>
           </div>
         ),
-        duration: 15000, // Longer duration for instructions
+        duration: 15000, 
       });
     } catch (err) {
       console.error("Failed to copy special URL for new window: ", err);
@@ -164,7 +178,6 @@ function PageContent() {
 
 
   useEffect(() => {
-    // This effect runs in the new window when the user pastes the special URL
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
     
     console.log('[OpenInNewWindowEffect] Triggered. GroupID (from query param):', groupIdToOpen, 'isLoading:', isLoading, 'appData:', !!appData, 'currentHash (from useAppData):', currentHash);
@@ -176,7 +189,6 @@ function PageContent() {
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
       console.log('[OpenInNewWindowEffect] Found group:', group);
 
-      // URL to clear query params from, retaining the hash
       const urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
       if (group && group.urls.length > 0) {
@@ -207,7 +219,6 @@ function PageContent() {
           }
         });
         
-        // Clear query param first
         console.log(`[OpenInNewWindowEffect] Clearing query param, new URL: ${urlToClearParamsFrom}`);
         router.replace(urlToClearParamsFrom, { scroll: false }); 
 
@@ -216,12 +227,11 @@ function PageContent() {
           console.log(`[OpenInNewWindowEffect] Attempting to navigate current tab to first URL after delay: ${firstUrl}`);
           setTimeout(() => {
              console.log(`[OpenInNewWindowEffect] Timeout: Navigating to ${firstUrl}`);
-             window.location.replace(firstUrl); // Navigate the current tab
+             window.location.replace(firstUrl); 
           }, 250); 
         } catch (e) {
            console.error(`[OpenInNewWindowEffect] Invalid first URL, cannot replace helper tab: ${firstUrl}`, e);
            toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000});
-           // URL already cleared (router.replace was called before this try-catch)
         }
       } else if (group && group.urls.length === 0) {
         console.log('[OpenInNewWindowEffect] Group found but has no URLs.');
@@ -236,12 +246,30 @@ function PageContent() {
       }
     } else {
         if (groupIdToOpen && (isLoading || !appData || !currentHash) ) { 
-            // Only log if groupIdToOpen exists but other conditions are not met yet, to avoid noise
             console.log('[OpenInNewWindowEffect] Conditions not met yet. GroupID parsed:', groupIdToOpen, 'appData loaded:', !!appData, 'isLoading:', isLoading, 'currentHash set:', !!currentHash);
         }
     }
-  // Ensure dependencies are correct, especially if logic inside relies on more variables from appData or other hooks
-  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast, setLinkGroups /* if appData.linkGroups could be stale */]);
+  }, [searchParams, appData, isLoading, currentHash, router, pathname, toast, setLinkGroups]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEndLinkGroups = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id && appData) {
+      const oldIndex = appData.linkGroups.findIndex((g) => g.id === active.id);
+      const newIndex = appData.linkGroups.findIndex((g) => g.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedGroups = arrayMove(appData.linkGroups, oldIndex, newIndex);
+        setLinkGroups(reorderedGroups);
+      }
+    }
+  };
 
 
   if (isLoading || !appData) {
@@ -335,15 +363,25 @@ function PageContent() {
                 aria-label="Page Title"
               />
             </div>
-
-            <LinkGroupList
-              groups={appData.linkGroups}
-              onAddGroup={handleAddGroup}
-              onEditGroup={handleEditGroup}
-              onDeleteGroup={handleDeleteGroup}
-              onOpenGroup={handleOpenGroup}
-              onOpenInNewWindow={handleOpenGroupInNewWindow}
-            />
+            <DndContext 
+              sensors={sensors} 
+              collisionDetection={closestCenter} 
+              onDragEnd={handleDragEndLinkGroups}
+            >
+              <SortableContext 
+                items={appData.linkGroups.map(g => g.id)} 
+                strategy={rectSortingStrategy}
+              >
+                <LinkGroupList
+                  groups={appData.linkGroups}
+                  onAddGroup={handleAddGroup}
+                  onEditGroup={handleEditGroup}
+                  onDeleteGroup={handleDeleteGroup}
+                  onOpenGroup={handleOpenGroup}
+                  onOpenInNewWindow={handleOpenGroupInNewWindow}
+                />
+              </SortableContext>
+            </DndContext>
           </main>
           <LinkGroupFormDialog
             isOpen={isFormOpen}
@@ -411,7 +449,6 @@ function CardSkeleton() {
   );
 }
 
-// Wrap PageContent with Suspense for useSearchParams
 export default function Home() {
   return (
     <Suspense fallback={<PageSkeletonForSuspense />}>
@@ -420,7 +457,6 @@ export default function Home() {
   );
 }
 
-// A simplified skeleton for the Suspense fallback, as the full one might depend on hooks not yet available
 function PageSkeletonForSuspense() {
   return (
     <div className="min-h-screen flex flex-col">
@@ -449,6 +485,3 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
-    
-
-    

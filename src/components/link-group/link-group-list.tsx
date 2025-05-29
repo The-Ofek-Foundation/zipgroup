@@ -2,7 +2,8 @@
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
-import { LinkGroupCard } from "./link-group-card";
+// LinkGroupCard is now rendered by SortableLinkGroupItem
+import { SortableLinkGroupItem } from "./sortable-link-group-item";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, LayoutGrid } from "lucide-react";
 
@@ -12,7 +13,7 @@ interface LinkGroupListProps {
   onEditGroup: (group: LinkGroup) => void;
   onDeleteGroup: (group: LinkGroup) => void;
   onAddGroup: () => void;
-  onOpenInNewWindow: (group: LinkGroup) => void; // New prop
+  onOpenInNewWindow: (group: LinkGroup) => void;
 }
 
 export function LinkGroupList({
@@ -21,7 +22,7 @@ export function LinkGroupList({
   onEditGroup,
   onDeleteGroup,
   onAddGroup,
-  onOpenInNewWindow, // Destructure new prop
+  onOpenInNewWindow,
 }: LinkGroupListProps) {
   if (groups.length === 0) {
     return (
@@ -47,13 +48,13 @@ export function LinkGroupList({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {groups.map((group) => (
-          <LinkGroupCard
+          <SortableLinkGroupItem
             key={group.id}
             group={group}
             onOpen={onOpenGroup}
             onEdit={onEditGroup}
             onDelete={onDeleteGroup}
-            onOpenInNewWindow={onOpenInNewWindow} // Pass prop
+            onOpenInNewWindow={onOpenInNewWindow}
           />
         ))}
       </div>

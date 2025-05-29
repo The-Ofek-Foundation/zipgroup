@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface LinkGroupCardProps {
   group: LinkGroup;
@@ -26,9 +27,10 @@ interface LinkGroupCardProps {
   onEdit: (group: LinkGroup) => void;
   onDelete: (group: LinkGroup) => void;
   onOpenInNewWindow: (group: LinkGroup) => void;
+  isDragging?: boolean;
 }
 
-export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow }: LinkGroupCardProps) {
+export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow, isDragging }: LinkGroupCardProps) {
   const { toast } = useToast();
 
   const handleOpenLinks = () => {
@@ -73,7 +75,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
   };
 
   return (
-    <Card className="flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <Card className={cn(
+      "flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300",
+      isDragging && "ring-2 ring-primary shadow-2xl opacity-75 z-50"
+    )}>
       <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
         <div className="p-2 bg-primary/10 rounded-md">
           <LucideIcon name={group.icon} className="h-8 w-8 text-primary" />
@@ -99,7 +104,6 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
         </ul>
       </CardContent>
       <CardFooter className="flex flex-row flex-nowrap items-center justify-between gap-x-2 pt-4 border-t">
-        {/* Left Button Group: Open All & New Window */}
         <div className="flex flex-row items-center gap-x-2 flex-shrink min-w-0">
             <Tooltip>
                 <TooltipTrigger asChild>
@@ -132,7 +136,6 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
                 </TooltipContent>
             </Tooltip>
         </div>
-        {/* Right Button Group: Edit & Delete */}
         <div className="flex flex-row items-center gap-x-2 flex-shrink-0">
           <Tooltip>
             <TooltipTrigger asChild>
