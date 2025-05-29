@@ -25,7 +25,7 @@ interface LinkGroupCardProps {
   onOpen: (group: LinkGroup) => void;
   onEdit: (group: LinkGroup) => void;
   onDelete: (group: LinkGroup) => void;
-  onOpenInNewWindow: (group: LinkGroup) => void; // New prop
+  onOpenInNewWindow: (group: LinkGroup) => void;
 }
 
 export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWindow }: LinkGroupCardProps) {
@@ -40,10 +40,10 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
       });
       return;
     }
-    onOpen(group); // Call the original onOpen logic which includes toast
+    onOpen(group); 
     group.urls.forEach(url => {
       try {
-        new URL(url); // Check if URL is valid
+        new URL(url); 
         window.open(url, "_blank");
       } catch (e) {
         console.warn(`Invalid URL skipped: ${url}`);
@@ -98,12 +98,13 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
           {group.urls.length > 3 && <li className="italic">...and {group.urls.length - 3} more</li>}
         </ul>
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-between pt-4 border-t gap-2">
+      <CardFooter className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t gap-2">
         <div className="flex w-full sm:w-auto gap-2">
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button onClick={handleOpenLinks} className="flex-1 group" variant="default">
-                        <ExternalLink className="mr-2 h-4 w-4 group-hover:animate-pulse" /> Open All
+                    <Button onClick={handleOpenLinks} className="flex-1 group justify-center" variant="default">
+                        <ExternalLink className="h-4 w-4 group-hover:animate-pulse" />
+                        <span className="hidden md:inline ml-2">Open All</span>
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -112,12 +113,13 @@ export function LinkGroupCard({ group, onOpen, onEdit, onDelete, onOpenInNewWind
             </Tooltip>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button onClick={handleOpenInNewWindowClick} className="flex-1 group" variant="outline">
-                        <AppWindow className="mr-2 h-4 w-4" /> New Window
+                    <Button onClick={handleOpenInNewWindowClick} className="flex-1 group justify-center" variant="outline">
+                        <AppWindow className="h-4 w-4" />
+                        <span className="hidden md:inline ml-2">New Window</span>
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>Open all links in a new window</p>
+                    <p>Open all links in a new window (via copied link)</p>
                 </TooltipContent>
             </Tooltip>
         </div>
