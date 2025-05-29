@@ -32,12 +32,12 @@ interface UrlItem {
 }
 
 interface DynamicUrlInputProps {
-  urls: string[];
-  onChange: (urls: string[]) => void;
+  urls: string[]; // Comes from React Hook Form's field.value
+  onChange: (urls: string[]) => void; // Comes from React Hook Form's field.onChange
 }
 
 interface SortableUrlItemProps {
-  item: UrlItem; // Changed from 'url' and 'index' to 'item'
+  item: UrlItem;
   urlsCount: number;
   handleUrlChange: (id: string, value: string) => void;
   removeUrlField: (id: string) => void;
@@ -98,7 +98,7 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
             size="icon"
             onClick={() => removeUrlField(item.id)}
             aria-label="Remove URL"
-            disabled={urlsCount <= 1 && item.value === internalUrlItems[0]?.value} // Check if it's the only item
+            disabled={urlsCount <= 1} // Simplified: disable if it's the only item
           >
             <XCircle className="h-5 w-5 text-destructive" />
           </Button>
@@ -111,25 +111,24 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
   );
 }
 
-
-// Helper: Keep track of internal items to ensure stable IDs for dnd-kit
-let internalUrlItems: UrlItem[] = [];
-
 export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputProps) {
+  // Initialize internal state from propUrls, ensuring propUrls is an array.
   const [items, setItems] = useState<UrlItem[]>(() =>
-    propUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue }))
+    (propUrls || []).map(urlValue => ({ id: crypto.randomUUID(), value: urlValue }))
   );
 
-  // Effect to sync with propUrls if it changes from parent (e.g., form reset)
+  // Effect to sync with propUrls if it changes from parent (e.g., form reset, initial data load)
   useEffect(() => {
-    // This simple check might not be perfect for all parent update scenarios,
-    // but handles cases where the array reference or length changes.
-    // It re-generates IDs, which is acceptable if the whole list context changes.
-    if (propUrls.length !== items.length || propUrls.some((url, i) => url !== items[i]?.value)) {
-      setItems(propUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
-    }
-  }, [propUrls]);
+    // Convert current items to a string array for comparison
+    const currentItemValues = items.map(item => item.value);
+    const safePropUrls = propUrls || [];
 
+    // Only update internal 'items' if 'propUrls' truly represents a different set of values.
+    // This comparison helps prevent infinite loops if 'propUrls' reference changes but content is effectively the same.
+    if (JSON.stringify(safePropUrls) !== JSON.stringify(currentItemValues)) {
+      setItems(safePropUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
+    }
+  }, [propUrls]); // Only depend on propUrls for this effect.
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -154,22 +153,22 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
   };
 
   const removeUrlField = (id: string) => {
+    // Filter out the item to be removed
     const newItems = items.filter(item => item.id !== id);
-    // Ensure at least one URL field remains if it's currently empty
-    if (newItems.length === 0 && items.length === 1 && items[0].value === "") {
-        // Do not remove the last empty field
-        return;
-    }
-    if (newItems.length === 0) { // if all fields removed, add one back
-        const newFallbackItem = {id: crypto.randomUUID(), value: ""};
-        setItems([newFallbackItem]);
-        onChange([newFallbackItem.value]);
+
+    if (newItems.length === 0) {
+      // If removing this field would leave no fields,
+      // instead, reset it to an empty string if it's the last one,
+      // or add a new empty field if the list was truly emptied by the filter.
+      // This ensures there's always at least one input field.
+      const fallbackItem = { id: crypto.randomUUID(), value: "" };
+      setItems([fallbackItem]);
+      onChange([fallbackItem.value]);
     } else {
-        setItems(newItems);
-        onChange(newItems.map(item => item.value));
+      setItems(newItems);
+      onChange(newItems.map(item => item.value));
     }
   };
-
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -181,17 +180,13 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
         
         if (oldIndex !== -1 && newIndex !== -1) {
           const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
-          onChange(reorderedItems.map(item => item.value));
-          return reorderedItems;
+          onChange(reorderedItems.map(item => item.value)); // Report change to parent form
+          return reorderedItems; // Update local state
         }
         return currentItems; // Should not happen if IDs are correct
       });
     }
   }
-  
-  // Update internalUrlItems for SortableUrlItem's disabled logic
-  internalUrlItems = items;
-
 
   return (
     <DndContext
