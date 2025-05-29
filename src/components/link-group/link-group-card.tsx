@@ -81,6 +81,7 @@ export function LinkGroupCard({
   };
 
   const handleOpenInNewWindowClick = () => {
+    if (isReadOnlyPreview) return; // Should not be callable if button is disabled
     if (group.urls.length === 0) {
       toast({
         title: "No URLs",
@@ -146,13 +147,14 @@ export function LinkGroupCard({
                         onPointerDown={stopPropagationForEvents}
                         className="justify-center group overflow-hidden"
                         variant="outline"
+                        disabled={isReadOnlyPreview}
                     >
                         <AppWindow className="h-4 w-4 shrink-0" />
                         <span className="hidden md:inline ml-2 truncate">New Window</span>
                     </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>Open all links in a new window (via copied link)</p>
+                    <p>{isReadOnlyPreview ? "Not available for shared previews" : "Open all links in a new window (via copied link)"}</p>
                 </TooltipContent>
             </Tooltip>
         </div>
@@ -177,22 +179,39 @@ export function LinkGroupCard({
           </Tooltip>
 
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <DialogTrigger asChild>
                 <Button 
                   variant="destructive" 
                   size="icon" 
-                  onClick={(e) => { 
-                    if (isReadOnlyPreview) return; 
-                    // No stopPropagation needed if drag delay is sufficient
-                    setIsDeleteDialogOpen(true);
-                  }}
                   aria-label="Delete group"
                   disabled={isReadOnlyPreview}
+                  onClick={() => { if (!isReadOnlyPreview) setIsDeleteDialogOpen(true);}} // onPointerDown removed for dialog trigger
                   {...joyrideDeleteButtonProps}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+            </DialogTrigger>
+            <Tooltip> 
+              <TooltipTrigger asChild>
+                {/* This is a bit of a workaround: The actual trigger is above. This is for the tooltip to show. */}
+                {/* Radix Tooltip often needs a direct child as a trigger. */}
+                {/* Alternatively, conditionally render Tooltip only if button is not trigger, or wrap DialogTrigger in a span. */}
+                {/* For simplicity, we'll just have the tooltip around a visually similar button that's effectively a label here. */}
+                {/* A better approach might be to use a more complex Radix composition if tooltips on DialogTriggers are essential and problematic. */}
+                {/* OR simply rely on the aria-label for accessibility and don't wrap DialogTrigger in TooltipTrigger. */}
+                {/* For this case, let's keep it simple: Tooltip is on the button that opens the dialog. */}
+                 <div className="inline-block"> {/* For tooltip to anchor correctly with a disabled button */}
+                    <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        aria-label="Delete group"
+                        disabled={isReadOnlyPreview}
+                        className={isReadOnlyPreview ? "pointer-events-none" : ""} // Ensure it's not clickable if read-only
+                        tabIndex={-1} // Not focusable if it's just for tooltip on a disabled state
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                 </div>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Delete group</p>
