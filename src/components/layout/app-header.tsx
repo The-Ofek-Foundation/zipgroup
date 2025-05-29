@@ -5,7 +5,7 @@ import type React from "react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { CustomColorPicker } from "@/components/theme/custom-color-picker";
-import { Zap, ListChecks, Share2 } from "lucide-react"; // Added Share2
+import { Zap, ListChecks, Share2 } from "lucide-react";
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -14,8 +14,8 @@ interface AppHeaderProps {
   customPrimaryColor: string | undefined;
   onSetCustomPrimaryColor: (color?: string) => void;
   isReadOnlyPreview?: boolean;
-  onInitiateShare?: () => void; // For sharing the current page
-  canShareCurrentPage?: boolean; // To enable/disable the share button
+  onInitiateShare?: () => void; 
+  canShareCurrentPage?: boolean;
 }
 
 export function AppHeader({
@@ -34,7 +34,7 @@ export function AppHeader({
           <Zap className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold text-primary">ZipGroup</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-joyride="app-header-controls">
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard">
               <span className="flex items-center gap-1.5">
@@ -43,7 +43,6 @@ export function AppHeader({
               </span>
             </Link>
           </Button>
-          {/* "New Page" button is no longer disabled by isReadOnlyPreview */}
           <Button variant="outline" onClick={onCreateNewPage} size="sm">New Page</Button>
           
           {onInitiateShare && (
@@ -55,6 +54,7 @@ export function AppHeader({
                   onClick={onInitiateShare}
                   disabled={!canShareCurrentPage}
                   aria-label="Share this page"
+                  data-joyride="share-current-page-button"
                 >
                   <Share2 className="h-5 w-5" />
                 </Button>
@@ -69,8 +69,12 @@ export function AppHeader({
             currentCustomColor={customPrimaryColor}
             onSetCustomColor={onSetCustomPrimaryColor}
             disabled={isReadOnlyPreview}
+            joyrideProps={{ "data-joyride": "custom-color-picker" }}
           />
-          <ThemeSwitcher disabled={isReadOnlyPreview} />
+          <ThemeSwitcher 
+            disabled={isReadOnlyPreview} 
+            joyrideProps={{ "data-joyride": "theme-switcher" }}
+          />
         </div>
       </div>
     </header>

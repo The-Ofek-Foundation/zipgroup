@@ -15,6 +15,7 @@ interface CustomColorPickerProps {
   currentCustomColor: string | undefined;
   onSetCustomColor: (color?: string) => void;
   disabled?: boolean;
+  joyrideProps?: Record<string, unknown>; // For react-joyride targeting
 }
 
 const applyStylesToDocument = (hexColor: string | null | undefined) => {
@@ -35,7 +36,7 @@ const applyStylesToDocument = (hexColor: string | null | undefined) => {
   root.style.removeProperty('--ring');
 };
 
-export function CustomColorPicker({ currentCustomColor, onSetCustomColor, disabled = false }: CustomColorPickerProps) {
+export function CustomColorPicker({ currentCustomColor, onSetCustomColor, disabled = false, joyrideProps }: CustomColorPickerProps) {
   const [pickerColor, setPickerColor] = useState<string>(currentCustomColor || "#72BCD4");
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
@@ -83,7 +84,13 @@ export function CustomColorPicker({ currentCustomColor, onSetCustomColor, disabl
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Customize theme color" disabled={disabled}>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                aria-label="Customize theme color" 
+                disabled={disabled}
+                {...joyrideProps} // Spread joyrideProps here
+              >
                 <Palette className="h-5 w-5" />
               </Button>
             </PopoverTrigger>

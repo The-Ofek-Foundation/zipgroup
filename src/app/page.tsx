@@ -2,7 +2,8 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
+import Joyride, { type Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import { AppHeader } from "@/components/layout/app-header";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
@@ -12,7 +13,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock } from "lucide-react";
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateRandomHash } from "@/lib/utils";
@@ -35,6 +36,8 @@ import {
 } from '@dnd-kit/sortable';
 
 const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_";
+const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
+
 
 function PageContent() {
   const router = useRouter();
@@ -44,7 +47,11 @@ function PageContent() {
 
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
   const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
-  
+
+  // Joyride State
+  const [runJoyride, setRunJoyride] = useState(false);
+  const [joyrideKey, setJoyrideKey] = useState(Date.now()); // To reset/remount Joyride
+
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const sharedDataParam = searchParams.get('sharedData');
@@ -52,16 +59,14 @@ function PageContent() {
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData); // This will be passed to useAppData
+          setInitialSharedData(parsedData); 
           toast({
             title: "Shared Page Loaded",
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clean the URL immediately after processing sharedData
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
-          // Replace history state without triggering a re-fetch or full navigation, just clean URL
           window.history.replaceState(null, '', newUrl.pathname + newUrl.search + newUrl.hash);
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
@@ -101,6 +106,74 @@ function PageContent() {
       setLocalPageTitle(appData.pageTitle);
     }
   }, [appData?.pageTitle]);
+
+  // Auto-start Joyride for pristine page if not taken
+  useEffect(() => {
+    if (!isLoading && !currentHash && !initialSharedData && typeof window !== 'undefined') {
+      const tourTaken = localStorage.getItem(JOYRIDE_PRISTINE_TAKEN_KEY);
+      if (!tourTaken) {
+        // Small delay to ensure elements are rendered
+        setTimeout(() => {
+          setRunJoyride(true);
+          setJoyrideKey(Date.now()); // Reset key to ensure tour starts fresh
+        }, 500);
+      }
+    }
+  }, [isLoading, currentHash, initialSharedData]);
+
+
+  const pristinePageJoyrideSteps: Step[] = [
+    {
+      target: '[data-joyride="page-title-input"]',
+      content: 'Customize your page title here. This is the main heading for your ZipGroup page.',
+      placement: 'bottom',
+      disableBeacon: true,
+    },
+    {
+      target: '[data-joyride="theme-switcher"]',
+      content: 'Toggle between light and dark themes for your page.',
+      placement: 'bottom',
+    },
+    {
+      target: '[data-joyride="custom-color-picker"]',
+      content: 'Pick a custom primary color to personalize your page further.',
+      placement: 'bottom',
+    },
+    {
+      target: '[data-joyride="interactive-sample-info"]',
+      content: 'This is an interactive sample page. Feel free to make changes!',
+      placement: 'bottom',
+    },
+    {
+      target: '[data-joyride="save-pristine-page-button"]',
+      content: 'Once you\'re happy, save your page to get a unique link and start adding link groups!',
+      placement: 'top',
+    },
+  ];
+
+  const handleJoyrideCallback = useCallback((data: CallBackProps) => {
+    const { status, type, action } = data;
+    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
+
+    if (finishedStatuses.includes(status)) {
+      setRunJoyride(false);
+      if (status === STATUS.FINISHED && !currentHash && !initialSharedData) {
+        localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
+      }
+    }
+
+    if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
+        setRunJoyride(false); // Allow closing with X button
+    }
+
+    // console.log('Joyride callback data:', data);
+  }, [currentHash, initialSharedData]);
+
+  const startPristineTour = () => {
+    setRunJoyride(true);
+    setJoyrideKey(Date.now()); // Reset key
+  };
+
 
   const handlePageTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setLocalPageTitle(event.target.value);
@@ -215,7 +288,6 @@ function PageContent() {
       return;
     }
     
-    // Construct URL with query param BEFORE hash
     const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
 
     try {
@@ -305,7 +377,7 @@ function PageContent() {
       }
     } else {
       if (groupIdToOpen) {
-        console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
+        // console.log("[OpenInNewWindowEffect] Conditions not met. GroupID:", groupIdToOpen, "isLoading:", isLoading, "appData:", !!appData, "currentHash:", currentHash);
       }
     }
   }, [searchParams, appData, isLoading, currentHash, pathname, router, toast]);
@@ -332,11 +404,9 @@ function PageContent() {
     }
   };
   
-  // A page is considered a "pristine page" if it has no currentHash.
-  // A "read-only preview" is specifically when it's a pristine page *and* it came from initialSharedData.
-  // An interactive sample page is when it's pristine but *not* from initialSharedData.
-  const isPristinePage = !currentHash && appData;
-  const isReadOnlyPreview = isPristinePage && !!initialSharedData; // Only shared previews are read-only
+  const isPristinePage = !currentHash && appData && !initialSharedData; // Interactive sample page
+  const isSharedPreview = !currentHash && appData && !!initialSharedData; // Shared page PREVIEW (read-only)
+  const isReadOnly = isSharedPreview; // Central flag for disabling UI elements
 
 
   if (isLoading || !appData || !sharedDataProcessed) {
@@ -410,6 +480,10 @@ function PageContent() {
         title: "Page Saved!",
         description: "Your new ZipGroup page is ready.",
       });
+       // If this was the pristine sample page, mark the tour as taken
+      if (isPristinePage) {
+        localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
+      }
     } else {
        toast({
         title: "Save Failed",
@@ -426,15 +500,43 @@ function PageContent() {
       appData={appData}
       onThemeChange={setTheme}
     >
+      {typeof window !== 'undefined' && !isSharedPreview && ( // Joyride only for non-shared pages for now
+        <Joyride
+          key={joyrideKey}
+          steps={pristinePageJoyrideSteps}
+          run={runJoyride}
+          callback={handleJoyrideCallback}
+          continuous
+          showProgress
+          showSkipButton
+          scrollToFirstStep
+          disableScrollParentFix // Often needed with complex layouts
+          styles={{
+            options: {
+              zIndex: 10000, // Ensure it's above other elements
+              arrowColor: 'hsl(var(--background))',
+              backgroundColor: 'hsl(var(--background))',
+              primaryColor: 'hsl(var(--primary))',
+              textColor: 'hsl(var(--foreground))',
+            },
+            tooltip: {
+              borderRadius: 'var(--radius)',
+            },
+            buttonClose: {
+              display: 'none', // Using skip button instead
+            },
+          }}
+        />
+      )}
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
             onCreateNewPage={createNewBlankPage} 
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={isReadOnlyPreview} // Read-only if it's a SHARED page preview
+            isReadOnlyPreview={isReadOnly}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isReadOnlyPreview} // Can share if saved and not a shared preview
+            canShareCurrentPage={!!currentHash && !isSharedPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center"> 
@@ -447,7 +549,8 @@ function PageContent() {
                 className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
-                disabled={isReadOnlyPreview} // Title is disabled only for shared previews
+                disabled={isReadOnly}
+                data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -457,34 +560,49 @@ function PageContent() {
               )}
             </div>
 
-            {isPristinePage && ( // This block shows for both interactive sample and shared preview
-              <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow">
+            {(isPristinePage || isSharedPreview) && ( 
+              <div 
+                className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
+                data-joyride={isPristinePage ? "interactive-sample-info" : undefined}
+              >
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {initialSharedData ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
+                  {isSharedPreview ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                  {initialSharedData
+                  {isSharedPreview
                     ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own and enable editing."
                     : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"}
                 </p>
-                <Button onClick={handleSavePristineOrSharedPage} size="lg" disabled={isSavingNewPage}>
-                  {isSavingNewPage ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-5 w-5" />
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Button 
+                    onClick={handleSavePristineOrSharedPage} 
+                    size="lg" 
+                    disabled={isSavingNewPage}
+                    data-joyride="save-pristine-page-button"
+                  >
+                    {isSavingNewPage ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-5 w-5" />
+                    )}
+                    {isSharedPreview ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
+                  </Button>
+                  {isPristinePage && (
+                     <Button variant="outline" size="lg" onClick={startPristineTour}>
+                        <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
+                    </Button>
                   )}
-                  {initialSharedData ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
-                </Button>
+                </div>
                 <p className="text-sm text-muted-foreground mt-4">
-                  {initialSharedData 
+                  {isSharedPreview 
                     ? "Saving will create a new copy in your dashboard, allowing you to edit and manage it."
                     : "After saving, you'll get a unique URL for this page."}
                 </p>
               </div>
             )}
             
-            {appData && !isReadOnlyPreview && ( // If NOT read-only (i.e., it's interactive sample or a saved page)
+            {!isReadOnly && appData && (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -501,20 +619,20 @@ function PageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false} // Explicitly false for interactivity
+                    isReadOnlyPreview={false} 
                   />
                 </SortableContext>
               </DndContext>
             )}
-             {appData && isReadOnlyPreview && ( // If it IS a read-only shared preview
+             {isReadOnly && appData && (
                 <LinkGroupList
                     groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList
-                    onEditGroup={handleEditGroup} // Will be disabled by LinkGroupList
-                    onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupList
+                    onAddGroup={handleAddGroup}
+                    onEditGroup={handleEditGroup}
+                    onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={true} // Explicitly true for read-only
+                    isReadOnlyPreview={true}
                   />
              )}
           </main>
@@ -595,7 +713,6 @@ export default function Home() {
 }
 
 function PageSkeletonForSuspense() {
-  // This skeleton is for the initial Suspense boundary for useSearchParams
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -622,5 +739,3 @@ function PageSkeletonForSuspense() {
     </div>
   );
 }
-
-    
