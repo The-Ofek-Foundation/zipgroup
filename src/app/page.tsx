@@ -8,6 +8,8 @@ import { AppFooter } from "@/components/layout/app-footer";
 import { useAppData } from "@/hooks/use-app-data";
 import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+
+// Direct static imports instead of React.lazy
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { ActualPageContent } from "@/components/page-view/actual-page-content";
 
@@ -47,7 +49,7 @@ function PageSkeletonForSuspense() {
 
 function PageRouter() {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname(); // This hook provides the current path
 
   const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
 
@@ -59,10 +61,12 @@ function PageRouter() {
         return;
       }
 
+      // Use the pathname from the hook, which is reactive
+      const currentPath = pathname;
       const hash = window.location.hash.substring(1).split('?')[0];
       const sharedDataParam = searchParams.get('sharedData');
 
-      if (pathname === '/' && !hash && !sharedDataParam) {
+      if (currentPath === '/' && !hash && !sharedDataParam) {
         setRenderMode('dashboard');
       } else {
         setRenderMode('page');
@@ -71,15 +75,17 @@ function PageRouter() {
 
     determineMode(); // Initial determination
 
+    // Listen for hash changes to re-determine mode
     const handleHashChange = () => {
       determineMode();
     };
     window.addEventListener('hashchange', handleHashChange);
 
+    // Cleanup listener on component unmount
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams]); // Dependencies: pathname and searchParams
 
 
   if (renderMode === 'loading') {
