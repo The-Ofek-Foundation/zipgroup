@@ -2,7 +2,7 @@
 "use client";
 
 import type { AppData, LinkGroup } from "@/lib/types";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from 'next/navigation';
 import { generateRandomHash } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryCo
 // For the /sample page
 export const defaultSampleAppData: Omit<AppData, 'lastModified'> = {
   pageTitle: "Explore ZipGroup - Sample Page",
-  theme: 'light',
+  theme: 'light', // Will be overridden by system/dashboard theme if applicable
   customPrimaryColor: undefined,
   linkGroups: [
     {
@@ -66,48 +66,15 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     currentHashRef.current = currentHash;
   }, [currentHash]);
 
-  const loadData = useCallback((hash: string): AppData | null => {
-    if (!hash) return null;
-    const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    try {
-      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
-      if (storedData) {
-        const parsedData = JSON.parse(storedData) as AppData;
-        // Migration from old name "LinkWarp" to "ZipGroup"
-        if (parsedData.pageTitle && (parsedData.pageTitle.startsWith("LinkWarp Page"))) {
-          parsedData.pageTitle = `New ZipGroup Page`;
-        }
-        if (!parsedData.theme) {
-          parsedData.theme = systemTheme;
-        }
-        return parsedData;
-      } else {
-        // If hash exists but no data, create a new default page for that hash
-        const newDefaultPageData: AppData = {
-            ...defaultAppDataBase,
-            pageTitle: "New ZipGroup Page", // Always default to this for non-existent hashes
-            theme: systemTheme,
-            customPrimaryColor: undefined,
-            lastModified: Date.now()
-        };
-        saveData(hash, newDefaultPageData); // Save this newly created default page
-        return newDefaultPageData;
-      }
-    } catch (error) {
-      console.error("Failed to load data from local storage:", error);
-    }
-    return null;
-  }, []); // Removed saveData from dependencies to break potential cycle
-
   const saveData = useCallback((hash: string, dataToSave: AppData) => {
     if (!hash) return;
     try {
       const finalData = { ...dataToSave, lastModified: Date.now() };
       if (
         finalData.linkGroups && finalData.linkGroups.length === 0 &&
-        finalData.pageTitle === "New ZipGroup Page" && // Check for the generic new page title
+        finalData.pageTitle === "New ZipGroup Page" &&
         !finalData.customPrimaryColor &&
-        (!initialExternalData && pathname !== '/sample') // Only remove if it's not based on external or sample data
+        (!initialExternalData && pathname !== '/sample')
       ) {
         localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
         const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
@@ -122,7 +89,39 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     } catch (error) {
       console.error("Failed to save or remove data from local storage:", error);
     }
-  }, [pathname, initialExternalData]);
+  }, [pathname, initialExternalData]); // saveData's dependencies can be reviewed, but core logic is about localStorage
+
+  const loadData = useCallback((hash: string): AppData | null => {
+    if (!hash) return null;
+    const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    try {
+      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData) as AppData;
+        if (parsedData.pageTitle && (parsedData.pageTitle.startsWith("LinkWarp Page"))) {
+          parsedData.pageTitle = `New ZipGroup Page`;
+        }
+        if (!parsedData.theme) {
+          parsedData.theme = systemTheme;
+        }
+        return parsedData;
+      } else {
+        const newDefaultPageData: AppData = {
+            ...defaultAppDataBase,
+            pageTitle: "New ZipGroup Page", // Always "New ZipGroup Page" for non-existent hashes
+            theme: systemTheme,
+            customPrimaryColor: undefined,
+            lastModified: Date.now()
+        };
+        saveData(hash, newDefaultPageData);
+        return newDefaultPageData;
+      }
+    } catch (error) {
+      console.error("Failed to load data from local storage:", error);
+    }
+    return null;
+  }, [saveData]);
+
 
   // Effect for initial load and hash changes
   useEffect(() => {
@@ -135,25 +134,28 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     if (pathname === '/sample' && !initialHashFromUrl && !initialExternalData) {
       dataToLoad = {
         ...defaultSampleAppData,
-        theme: defaultSampleAppData.theme || systemTheme,
+        theme: defaultSampleAppData.theme || systemTheme, // Ensure theme is set
         customPrimaryColor: defaultSampleAppData.customPrimaryColor,
-      } as AppData;
+        // lastModified is not set for the template itself
+      } as AppData; // Cast to AppData, lastModified will be undefined
       hashToUse = null;
     } else if (initialExternalData && !initialHashFromUrl) {
+      // This is for when sharedData is present and no hash
       dataToLoad = {
-        ...defaultAppDataBase,
-        pageTitle: initialExternalData.pageTitle || "New ZipGroup Page",
+        ...defaultAppDataBase, // Start with base defaults
+        pageTitle: initialExternalData.pageTitle || "ZipGroup Shared Page",
         linkGroups: initialExternalData.linkGroups || [],
         theme: initialExternalData.theme || systemTheme,
         customPrimaryColor: initialExternalData.customPrimaryColor,
+        // lastModified will be undefined for a shared preview
       } as AppData;
       hashToUse = null;
     } else if (hashToUse) {
-      const loaded = loadData(hashToUse); // loadData now handles creating a default if not found
+      const loaded = loadData(hashToUse);
       dataToLoad = loaded ? { ...loaded, theme: loaded.theme || systemTheme } : null;
     } else {
-      // This case (no hash, not sample, not shared) is handled by PageRouter showing the dashboard.
-      // So, appData remains null.
+      // Root path '/' with no hash and no shared data - Dashboard will be shown by PageRouter.
+      // appData remains null, isLoading might be false already or set by PageRouter.
       setIsLoading(false);
       setCurrentHash(null);
       setAppData(null);
@@ -169,8 +171,9 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
       const newHashValueWithParams = window.location.hash.substring(1);
       const newHashValue = newHashValueWithParams.split('?')[0];
 
+      // This condition is for PageRouter to handle dashboard view, appData stays null
       if (pathname === '/' && !newHashValue && !new URLSearchParams(window.location.search).has('sharedData')) {
-        setAppData(null); // For dashboard view
+        setAppData(null);
         setCurrentHash(null);
         setIsLoading(false);
         return;
@@ -178,13 +181,15 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
 
       if (newHashValue === currentHashRef.current && pathname !== '/sample') return;
 
+
       setIsLoading(true);
       if (newHashValue) {
-        const newData = loadData(newHashValue); // loadData handles creating default if not found
+        const newData = loadData(newHashValue);
         const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         setAppData(newData ? { ...newData, theme: newData.theme || currentSystemTheme } : null);
         setCurrentHash(newHashValue);
       } else if (pathname === '/sample' && !initialExternalData) {
+         // If hash is removed while on /sample, reload sample data
         const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         const samplePageData: AppData = {
           ...defaultSampleAppData,
@@ -194,7 +199,8 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
         setAppData(samplePageData);
         setCurrentHash(null);
       } else {
-        // Should be covered by the dashboard case or if sharedData is present (handled by PageRouter)
+        // No hash, not /sample, and not sharedData means dashboard (handled by PageRouter)
+        // or an invalid state, reset appData.
         setAppData(null);
         setCurrentHash(null);
       }
@@ -203,32 +209,34 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [loadData, saveData, initialExternalData, pathname]); // Added saveData back for loadData's else branch
+  }, [loadData, saveData, initialExternalData, pathname]);
+
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
       const isUnsavedPage = currentHashRef.current === null;
 
       let baseData: AppData;
+      const currentSystemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
       if (prevData) {
         baseData = prevData;
       } else if (pathname === '/sample' && !currentHashRef.current) {
-        const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        baseData = { ...defaultSampleAppData, theme: defaultSampleAppData.theme || systemTheme } as AppData;
+        baseData = { ...defaultSampleAppData, theme: defaultSampleAppData.theme || currentSystemTheme } as AppData;
       } else if (isUnsavedPage && initialExternalData) {
-         const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-         baseData = { ...defaultAppDataBase, pageTitle: "New ZipGroup Page", theme: systemTheme, ...initialExternalData } as AppData;
+         baseData = { ...defaultAppDataBase, pageTitle: "ZipGroup Shared Page", theme: currentSystemTheme, ...initialExternalData } as AppData;
       } else {
-        const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        baseData = { ...defaultAppDataBase, pageTitle: "New ZipGroup Page", theme: systemTheme, lastModified: Date.now() } as AppData;
+        // Fallback for truly new, unsaved data if prevData is somehow null
+        baseData = { ...defaultAppDataBase, pageTitle: "New ZipGroup Page", theme: currentSystemTheme, lastModified: undefined } as AppData;
       }
 
       const newLocalData: AppData = { ...baseData, ...updates };
 
-      if (isUnsavedPage) {
-        return { ...newLocalData, lastModified: baseData?.lastModified };
+      if (isUnsavedPage) { // For /sample or shared preview before saving
+        return { ...newLocalData, lastModified: baseData.lastModified }; // Keep lastModified as is, or undefined
       }
 
+      // For saved pages, update lastModified and save
       const newDataToSave = { ...newLocalData, lastModified: Date.now() };
       saveData(currentHashRef.current!, newDataToSave);
       return newDataToSave;
@@ -255,19 +263,18 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
     if (!appData) return null;
 
     const newHash = generateRandomHash();
-    let dataToSave = { ...appData };
-    dataToSave.lastModified = Date.now();
-    // No longer renaming to "ZipGroup Page <hash>" here.
-    // The title will be whatever is currently in appData (e.g. "Explore ZipGroup - Sample Page" or user-edited title)
+    // Take current appData (which could be modified sample data, shared data, or existing page data)
+    let dataToSave: AppData = { ...appData, lastModified: Date.now() };
+    
+    // Title is already set (e.g. "Explore ZipGroup - Sample Page" or user's title)
+    // No longer renaming to "ZipGroup Page <hash>" here
+
     saveData(newHash, dataToSave);
-
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.delete('sharedData');
-
-    router.push(`${pathname.replace(/^\/$/, '')}/#${newHash}`);
+    
+    router.push(`/#${newHash}`);
 
     return newHash;
-  }, [appData, saveData, router, pathname]);
+  }, [appData, saveData, router]); // Simplified dependencies
 
 
   const createNewBlankPageAndRedirect = useCallback(() => {
@@ -289,14 +296,14 @@ export function useAppData(initialExternalData?: Partial<AppData>) {
 
     const newPageData: AppData = {
       ...defaultAppDataBase,
-      pageTitle: "New ZipGroup Page", // Correctly set here
+      pageTitle: "New ZipGroup Page",
       theme: dashboardThemeMode,
       customPrimaryColor: dashboardCustomColor,
       lastModified: Date.now(),
     };
     saveData(newHash, newPageData);
 
-    router.push(`/#${newHash}`); // Redirect to the new page with its hash
+    router.push(`/#${newHash}`);
     return newHash;
   }, [saveData, router]);
 
