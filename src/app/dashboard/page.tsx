@@ -11,7 +11,7 @@ import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2 } from "lucide-react";
+import { Home, PlusCircle, Trash2, Layers, SunMoon, Palette, Clock, FileText, Share2, BookOpenCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -147,7 +147,6 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
           )}
         </CardContent>
         <CardFooter className="pt-4 border-t flex justify-between items-center">
-          {/* Share Button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -165,15 +164,14 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
             </TooltipContent>
           </Tooltip>
 
-          {/* Delete Button Dialog */}
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 variant="destructive"
                 size="sm"
                 aria-label={`Delete page ${page.title}`}
-                onClick={(e) => { setIsDeleteDialogOpen(true); }} // Keep stopPropagationForEvents if needed for drag context on parent
-                // onPointerDown={stopPropagationForEvents} // Removed to allow dialog interaction with drag delay
+                // onClick={(e) => { stopPropagationForEvents(e); setIsDeleteDialogOpen(true); }} - Let dialog handle open
+                // onPointerDown={stopPropagationForEvents} - Removed to allow dialog interaction with drag delay
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </Button>
@@ -292,7 +290,7 @@ export default function DashboardPage() {
       const remainingPages = allLoadedPages.filter(p => !processedHashes.has(p.hash));
       remainingPages.sort((a, b) => {
         if (a.lastModified && b.lastModified) {
-          return b.lastModified - a.lastModified;
+          return b.lastModified - a.lastModified; // Sort newest first
         }
         if (a.lastModified) return -1;
         if (b.lastModified) return 1;
@@ -338,7 +336,7 @@ export default function DashboardPage() {
   }, [themeMode, customPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
-    router.push("/");
+    router.push("/"); // Root path will auto-create and redirect
   };
 
   const handleDeletePage = (hashToDelete: string) => {
@@ -450,6 +448,12 @@ export default function DashboardPage() {
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create New Page
               </Button>
+               <Button variant="outline" size="sm" asChild>
+                <Link href="/sample">
+                  <BookOpenCheck className="mr-2 h-4 w-4" />
+                  View Sample
+                </Link>
+              </Button>
               <CustomColorPicker
                 currentCustomColor={customPrimaryColor}
                 onSetCustomColor={setDashboardCustomPrimaryColor}
@@ -470,10 +474,18 @@ export default function DashboardPage() {
               <p className="mt-2 text-lg text-muted-foreground">
                 Looks like your dashboard is empty. Let's create your first page!
               </p>
-              <Button onClick={handleCreateNewPage} className="mt-8" size="lg">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Create Your First Page
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
+                <Button onClick={handleCreateNewPage} size="lg">
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  Create Your First Page
+                </Button>
+                 <Button variant="outline" size="lg" asChild>
+                  <Link href="/sample">
+                    <BookOpenCheck className="mr-2 h-5 w-5" />
+                    Explore Sample Page
+                  </Link>
+                </Button>
+              </div>
             </div>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>

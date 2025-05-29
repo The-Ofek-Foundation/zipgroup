@@ -3,7 +3,6 @@
 
 import type React from "react";
 import { useState, useEffect, Suspense, useCallback } from "react";
-import Joyride, { type Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import { AppHeader } from "@/components/layout/app-header";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
 import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
@@ -13,10 +12,9 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
+import { ClipboardCopy, Save, Loader2, Info, Share2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { generateRandomHash, normalizeUrl } from "@/lib/utils";
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -34,12 +32,11 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-
-const LOCAL_STORAGE_KEY_PREFIX = "linkwarp_";
-const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
+import { normalizeUrl } from "@/lib/utils";
 
 
-function PageContent() {
+// This component will render the actual page content if there's a hash or shared data
+function ActualPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -48,14 +45,10 @@ function PageContent() {
   const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
   const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
 
-  // Joyride State
-  const [runJoyride, setRunJoyride] = useState(false);
-  const [joyrideKey, setJoyrideKey] = useState(Date.now());
-
   useEffect(() => {
     if (typeof window !== 'undefined' && !sharedDataProcessed) {
       const sharedDataParam = searchParams.get('sharedData');
-      if (sharedDataParam && !window.location.hash) {
+      if (sharedDataParam && !window.location.hash) { // Ensure no hash when processing shared data
         try {
           const decodedJson = decodeURIComponent(sharedDataParam);
           const parsedData = JSON.parse(decodedJson) as AppData;
@@ -65,11 +58,9 @@ function PageContent() {
             description: "You're viewing a shared page. Click 'Save This Page' to add it to your dashboard.",
             duration: 7000,
           });
-          // Clear the sharedData param from URL after processing
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('sharedData');
           router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
-
         } catch (error) {
           console.error("Failed to parse sharedData:", error);
           toast({
@@ -77,13 +68,12 @@ function PageContent() {
             description: "The shared link seems to be invalid or corrupted.",
             variant: "destructive",
           });
-          // Clear potentially problematic param
            const newUrl = new URL(window.location.href);
            newUrl.searchParams.delete('sharedData');
            router.replace(newUrl.pathname + newUrl.search + newUrl.hash, { scroll: false });
         }
       }
-      setSharedDataProcessed(true); // Mark as processed even if no param or error
+      setSharedDataProcessed(true);
     }
   }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
@@ -94,7 +84,7 @@ function PageContent() {
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    createNewBlankPage,
+    createNewBlankPageAndRedirect, // For AppHeader "New Page"
     currentHash,
     setCustomPrimaryColor,
   } = useAppData(initialSharedData);
@@ -110,133 +100,6 @@ function PageContent() {
       setLocalPageTitle(appData.pageTitle);
     }
   }, [appData?.pageTitle]);
-
-  // Auto-start Joyride for pristine page if not taken
-  useEffect(() => {
-    if (!isLoading && !currentHash && !initialSharedData && typeof window !== 'undefined') {
-      const tourTaken = localStorage.getItem(JOYRIDE_PRISTINE_TAKEN_KEY);
-      if (!tourTaken) {
-        setTimeout(() => {
-          setRunJoyride(true);
-          setJoyrideKey(Date.now()); 
-        }, 500);
-      }
-    }
-  }, [isLoading, currentHash, initialSharedData]);
-
-
-  const pristinePageJoyrideSteps: Step[] = [
-    {
-      target: '[data-joyride="page-title-input"]',
-      content: 'Customize your page title here. This is the main heading for your ZipGroup page.',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="theme-switcher"]',
-      content: 'Toggle between light and dark themes for your page.',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="custom-color-picker"]',
-      content: 'Pick a custom primary color to personalize your page further.',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="interactive-sample-info"]',
-      content: 'This page is fully interactive! Customize it, then let\'s try adding a link group.',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="add-new-group-button"]',
-      content: 'Click here to add a new link group. Your changes on this page are temporary until you save the entire page.',
-      placement: 'top',
-      disableBeacon: true,
-      spotlightClicks: true,
-    },
-    {
-      target: '[data-joyride="group-form-name-input"]',
-      content: 'Enter a name for your group (e.g., "Work Links", "Social Media").',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="group-form-icon-picker"]',
-      content: 'Choose an icon that represents your group.',
-      placement: 'bottom',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="group-form-urls-input"]',
-      content: 'Add your links here. You can add multiple URLs and drag them to reorder.',
-      placement: 'top',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="group-form-save-button"]',
-      content: 'Click to save your new link group!',
-      placement: 'top',
-      disableBeacon: true,
-      spotlightClicks: true,
-    },
-    {
-      target: '[data-joyride="link-group-card"]', 
-      content: 'Your link groups appear as cards. If you have multiple, you can drag them to reorder.',
-      placement: 'top',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="link-group-edit-button"]', 
-      content: 'Use the edit button to modify a group\'s details or links.',
-      placement: 'top',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="link-group-delete-button"]', 
-      content: 'And the delete button to remove a group.',
-      placement: 'top',
-      disableBeacon: true,
-    },
-    {
-      target: '[data-joyride="save-pristine-page-button"]',
-      content: 'Great! Now you know the basics. Save your page to keep all your changes and get a unique shareable link!',
-      placement: 'top',
-      disableBeacon: true,
-    },
-  ];
-
-  const handleJoyrideCallback = useCallback((data: CallBackProps) => {
-    const { status, type, action, index, step } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
-
-    if (finishedStatuses.includes(status)) {
-      setRunJoyride(false);
-      if (status === STATUS.FINISHED && !currentHash && !initialSharedData) {
-        localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
-      }
-    }
-
-    if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
-      setRunJoyride(false);
-    }
-
-    if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
-      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) { 
-        if (!isFormOpen) {
-           setIsFormOpen(true);
-        }
-      }
-    }
-  }, [currentHash, initialSharedData, isFormOpen]);
-
-  const startPristineTour = () => {
-    setRunJoyride(true);
-    setJoyrideKey(Date.now());
-  };
-
 
   const handlePageTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setLocalPageTitle(event.target.value);
@@ -317,27 +180,13 @@ function PageContent() {
 
   const handleOpenNewPageInNewTab = () => {
     if (!appData) return;
-
-    const newHash = generateRandomHash();
-    const currentSystemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-
-    const newPageData: AppData = {
-      linkGroups: [],
-      pageTitle: `ZipGroup Page ${newHash}`,
-      theme: appData.theme || currentSystemTheme,
-      customPrimaryColor: appData.customPrimaryColor,
-      lastModified: Date.now(),
-    };
-
-    try {
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${newHash}`, JSON.stringify(newPageData));
-    } catch (error) {
-      console.error("Failed to save data for new tab:", error);
-      toast({ title: "Error", description: "Could not prepare new page for tab.", variant: "destructive" });
-      return;
-    }
-
-    const newUrl = `${window.location.origin}${pathname}#${newHash}`;
+    // This function should ideally call createNewBlankPageAndRedirect
+    // and then open window.location.origin + '/#' + newHash in a new tab.
+    // For now, let's simplify and just open a new blank page.
+    // The createNewBlankPageAndRedirect is designed for current tab redirection.
+    const newBlankHash = createNewBlankPageAndRedirect(); // This will redirect current tab, then open new one. Not ideal.
+                                                       // Let's make a simpler version for now.
+    const newUrl = `${window.location.origin}/`; // This will trigger new page creation on load
     window.open(newUrl, '_blank');
   };
 
@@ -383,12 +232,11 @@ function PageContent() {
 
  useEffect(() => {
     const groupIdToOpen = searchParams.get('openGroupInNewWindow');
+    let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
 
     if (groupIdToOpen && appData && !isLoading && currentHash) {
       console.log("[OpenInNewWindowEffect] Processing group ID:", groupIdToOpen, "with hash:", currentHash);
       const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-
-      let urlToClearParamsFrom = currentHash ? `${pathname}#${currentHash}` : pathname;
       
       if (group && group.urls.length > 0) {
         toast({
@@ -398,7 +246,7 @@ function PageContent() {
         });
         console.log("[OpenInNewWindowEffect] Found group:", group.name, "with URLs:", group.urls);
 
-        router.replace(urlToClearParamsFrom, { scroll: false });
+        router.replace(urlToClearParamsFrom, { scroll: false }); // Clear param first
         console.log("[OpenInNewWindowEffect] Cleared query param, new URL path should be:", urlToClearParamsFrom);
 
         const [firstUrl, ...otherUrls] = group.urls.map(normalizeUrl);
@@ -427,7 +275,6 @@ function PageContent() {
           } catch (e) {
             console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrl}":`, e);
             toast({ title: "Error with First Link", description: `The first link "${firstUrl}" is invalid or could not be opened. This tab will remain on a clean URL.`, variant: "destructive", duration: 7000 });
-             // Router replace already happened, tab remains on cleaned URL.
           }
         }, 250);
       } else if (group && group.urls.length === 0) {
@@ -464,40 +311,14 @@ function PageContent() {
     }
   };
 
-  const isPristineSamplePage = !currentHash && appData && !initialSharedData;
+  // This page no longer handles the "pristine sample page" directly.
+  // It handles pages with a hash or shared data previews.
   const isSharedPreview = !currentHash && appData && !!initialSharedData;
-  // Only shared previews are read-only. Pristine sample page is interactive.
   const isReadOnlyPreview = isSharedPreview;
 
 
   if (isLoading || !appData || !sharedDataProcessed) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
-          <div className="container mx-auto flex h-16 items-center justify-between p-4">
-            <Skeleton className="h-8 w-32" />
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-9 rounded-md" />
-              <Skeleton className="h-9 w-9 rounded-md" />
-            </div>
-          </div>
-        </header>
-        <main className="flex-grow container mx-auto p-4 md:p-8">
-          <div className="mb-8 text-center">
-            <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
-          </div>
-          <div className="flex justify-end mb-6">
-            <Skeleton className="h-10 w-40" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => (
-              <CardSkeleton key={i} />
-            ))}
-          </div>
-        </main>
-      </div>
-    );
+    return <PageSkeletonForSuspense />;
   }
 
   const handleAddGroup = () => {
@@ -533,17 +354,14 @@ function PageContent() {
     setIsFormOpen(false);
   };
 
-  const handleSavePristineOrSharedPage = async () => {
+  const handleSaveSharedPage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData();
+    const newHash = createNewPageFromAppData(); // This function in useAppData handles shared data correctly
     if (newHash) {
       toast({
-        title: isSharedPreview ? "Shared Page Saved!" : "Page Saved!",
-        description: isSharedPreview ? "The shared page is now part of your dashboard." : "Your new ZipGroup page is ready.",
+        title: "Shared Page Saved!",
+        description: "The shared page is now part of your dashboard.",
       });
-      if (isPristineSamplePage) { // Only mark tour taken if it was the pristine sample
-        localStorage.setItem(JOYRIDE_PRISTINE_TAKEN_KEY, 'true');
-      }
     } else {
       toast({
         title: "Save Failed",
@@ -554,47 +372,20 @@ function PageContent() {
     setIsSavingNewPage(false);
   };
 
-
   return (
     <ThemeProvider
       appData={appData}
       onThemeChange={setTheme}
     >
-      {typeof window !== 'undefined' && (
-        <Joyride
-          key={joyrideKey}
-          steps={pristinePageJoyrideSteps}
-          run={runJoyride}
-          callback={handleJoyrideCallback}
-          continuous
-          showProgress
-          showSkipButton
-          scrollToFirstStep
-          disableScrollParentFix 
-          spotlightClicks={true} 
-          styles={{
-            options: {
-              zIndex: 10000, 
-              arrowColor: 'hsl(var(--background))',
-              backgroundColor: 'hsl(var(--background))',
-              primaryColor: 'hsl(var(--primary))',
-              textColor: 'hsl(var(--foreground))',
-            },
-            tooltip: {
-              borderRadius: 'var(--radius)',
-            },
-          }}
-        />
-      )}
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPage} // Always create a new blank page
+            onCreateNewPage={createNewBlankPageAndRedirect} // Use the redirecting version
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={isReadOnlyPreview} // For disabling theme controls on shared previews
+            isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isSharedPreview}
+            canShareCurrentPage={!!currentHash && !isSharedPreview} // Can share if saved & not preview
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -608,7 +399,6 @@ function PageContent() {
                 placeholder="Enter Page Title"
                 aria-label="Page Title"
                 disabled={isReadOnlyPreview}
-                data-joyride="page-title-input"
               />
               {currentHash && appData.lastModified && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
@@ -618,44 +408,31 @@ function PageContent() {
               )}
             </div>
 
-            {(isPristineSamplePage || isSharedPreview) && (
+            {isSharedPreview && (
               <div
                 className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
-                data-joyride={isPristineSamplePage ? "interactive-sample-info" : undefined}
               >
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {isSharedPreview ? "Previewing Shared Page" : "Welcome to ZipGroup!"}
+                  Previewing Shared Page
                 </h2>
                 <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                  {isSharedPreview
-                    ? "This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own."
-                    : "You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your dashboard to make it your own!"}
+                  This is a preview of a shared ZipGroup page. You can explore the links below. When you're ready, save it to your dashboard to make it your own.
                 </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <Button
-                    onClick={handleSavePristineOrSharedPage}
-                    size="lg"
-                    disabled={isSavingNewPage}
-                    data-joyride="save-pristine-page-button"
-                  >
-                    {isSavingNewPage ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <Save className="mr-2 h-5 w-5" />
-                    )}
-                    {isSharedPreview ? "Save This Shared Page to My Dashboard" : "Save This Page to My Dashboard"}
-                  </Button>
-                  {isPristineSamplePage && (
-                    <Button variant="outline" size="lg" onClick={startPristineTour}>
-                      <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
-                    </Button>
+                <Button
+                  onClick={handleSaveSharedPage}
+                  size="lg"
+                  disabled={isSavingNewPage}
+                >
+                  {isSavingNewPage ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-5 w-5" />
                   )}
-                </div>
+                  Save This Shared Page to My Dashboard
+                </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  {isSharedPreview
-                    ? "Saving will create a new copy in your dashboard, allowing you to edit and manage it."
-                    : "After saving, you'll get a unique URL for this page."}
+                  Saving will create a new copy in your dashboard, allowing you to edit and manage it.
                 </p>
               </div>
             )}
@@ -682,12 +459,12 @@ function PageContent() {
                 </SortableContext>
               </DndContext>
             )}
-             {appData && isReadOnlyPreview && ( // For shared page previews
+             {appData && isReadOnlyPreview && ( // For shared page previews (shows groups but read-only)
               <LinkGroupList
                 groups={appData.linkGroups}
-                onAddGroup={handleAddGroup} // Will be disabled by LinkGroupList due to isReadOnlyPreview
-                onEditGroup={handleEditGroup} // Will be disabled by LinkGroupCard
-                onDeleteGroup={handleDeleteGroup} // Will be disabled by LinkGroupCard
+                onAddGroup={handleAddGroup}
+                onEditGroup={handleEditGroup}
+                onDeleteGroup={handleDeleteGroup}
                 onOpenGroup={handleOpenGroup}
                 onOpenInNewWindow={handleOpenGroupInNewWindow}
                 isReadOnlyPreview={true}
@@ -735,44 +512,39 @@ function PageContent() {
   );
 }
 
+// This component handles the root path redirection.
+function RootRedirector() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const { createNewBlankPageAndRedirect, isLoading: appDataIsLoading, appData } = useAppData();
+  const [isRedirecting, setIsRedirecting] = useState(true);
 
-function CardSkeleton() {
-  return (
-    <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-4">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-12 w-12 rounded-md" />
-        <div className="space-y-1 flex-1">
-          <Skeleton className="h-6 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-4 w-2/3" />
-      </div>
-      <div className="flex justify-between items-center pt-4 border-t">
-        <Skeleton className="h-9 w-full mr-2" />
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-9 rounded-md" />
-          <Skeleton className="h-9 w-9 rounded-md" />
-        </div>
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    // Ensure router is ready and we are on the client
+    if (typeof window !== 'undefined' && router && !appDataIsLoading) {
+      const shouldRedirect = pathname === '/' && !window.location.hash && !searchParams.get('sharedData');
+      
+      if (shouldRedirect) {
+        // console.log("RootRedirector: Attempting to redirect...");
+        createNewBlankPageAndRedirect();
+        // The redirect happens via router.push in the hook, so we just wait.
+        // setIsRedirecting will remain true until hash changes and content loads.
+      } else {
+        // console.log("RootRedirector: Not redirecting. Path:", pathname, "Hash:", window.location.hash, "SharedData:", searchParams.get('sharedData'));
+        setIsRedirecting(false); // Conditions for redirect not met, allow content render
+      }
+    }
+  }, [router, searchParams, pathname, createNewBlankPageAndRedirect, appDataIsLoading, appData]); // Added appData to deps for re-evaluation if it loads late
+
+  if (isRedirecting && pathname === '/' && !window.location.hash && !searchParams.get('sharedData')) {
+    return <PageSkeletonForSuspense />;
+  }
+  return <ActualPageContent />;
 }
 
-// Wrap PageContent with Suspense because useSearchParams() is used
-export default function Home() {
-  return (
-    <Suspense fallback={<PageSkeletonForSuspense />}>
-      <PageContent />
-    </Suspense>
-  );
-}
 
 function PageSkeletonForSuspense() {
-  // A simpler skeleton specifically for the Suspense fallback
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -781,6 +553,7 @@ function PageSkeletonForSuspense() {
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-24" />
             <Skeleton className="h-9 w-9 rounded-md" />
+            <Skeleton className="h-9 w-9 rounded-md" />
           </div>
         </div>
       </header>
@@ -788,7 +561,6 @@ function PageSkeletonForSuspense() {
         <div className="mb-8 text-center">
           <Skeleton className="h-12 w-3/4 mx-auto md:w-1/2" />
         </div>
-        {/* Simplified skeleton content for initial load */}
         <div className="flex justify-center mb-10">
            <Skeleton className="h-12 w-64" />
         </div>
@@ -798,5 +570,13 @@ function PageSkeletonForSuspense() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<PageSkeletonForSuspense />}>
+      <RootRedirector />
+    </Suspense>
   );
 }
