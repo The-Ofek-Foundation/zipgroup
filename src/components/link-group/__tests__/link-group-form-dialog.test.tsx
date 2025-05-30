@@ -125,7 +125,7 @@ describe('LinkGroupFormDialog Component', () => {
     
     // Ensure the URL input interaction is complete
     const urlInput = screen.getByTestId('url-input-0');
-    await user.clear(urlInput);
+    await user.clear(urlInput); // Explicitly clear if there's a default empty string
     await user.type(urlInput, 'http://newurl.com');
     
     await user.click(screen.getByRole('button', { name: 'Save Group' }));
@@ -179,10 +179,6 @@ describe('LinkGroupFormDialog Component', () => {
   // This test now focuses on the interaction of adding a URL field, not submission with it.
   test('DynamicUrlInput mock allows adding a new URL field', async () => {
     const user = userEvent.setup();
-    let currentUrls = [""];
-    const handleChange = (newUrls: string[]) => {
-      currentUrls = newUrls;
-    };
     // Render the mock directly to test its behavior if needed, or rely on form interaction
     // For this test, we'll interact through the form.
     render(<LinkGroupFormDialog {...defaultProps} onSubmit={jest.fn()} onClose={jest.fn()} />);
