@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -138,10 +138,11 @@ describe('IconPickerInput Component', () => {
 
     // The IconPickerInput uses <Check /> directly from 'lucide-react' for the indicator.
     // Our mock for 'lucide-react' provides our <svg data-testid="lucide-icon-Check" />.
-    // So, we search for that test ID.
-    const checkIcon = await screen.findByTestId('lucide-icon-Check');
+    // So, we search for that test ID *within* the selected button.
+    const checkIcon = await within(starIconButtonInPopover).findByTestId('lucide-icon-Check');
     expect(checkIcon).toBeInTheDocument();
     // Check if it's a child of the star button.
     expect(starIconButtonInPopover.contains(checkIcon)).toBe(true);
   });
 });
+

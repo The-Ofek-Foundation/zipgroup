@@ -21,3 +21,13 @@ if (typeof global.crypto.randomUUID === 'undefined') {
     });
   };
 }
+
+// Mock ResizeObserver
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  window.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn(),
+  }));
+}
