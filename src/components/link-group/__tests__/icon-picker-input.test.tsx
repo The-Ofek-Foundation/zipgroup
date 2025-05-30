@@ -1,14 +1,14 @@
+
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
 import { IconPickerInput } from '../icon-picker-input';
-import LucideIcon from '@/components/icons/lucide-icon'; // Import for checking rendered icon
 
-// Mock lucide-react's icons object to control the available icons for testing
-// We'll use a subset of the popularIcons and a few others for search tests
-const mockLucideIcons = {
+// Function to generate the mock icons object.
+// This helps with Jest's hoisting behavior for jest.mock.
+const getMockLucideIcons = () => ({
   Package: (props: any) => <svg data-testid="lucide-icon-Package" {...props} />,
   Briefcase: (props: any) => <svg data-testid="lucide-icon-Briefcase" {...props} />,
   Home: (props: any) => <svg data-testid="lucide-icon-Home" {...props} />,
@@ -25,57 +25,69 @@ const mockLucideIcons = {
   Airplay: (props: any) => <svg data-testid="lucide-icon-Airplay" {...props} />, // For search test
   AlarmClock: (props: any) => <svg data-testid="lucide-icon-AlarmClock" {...props} />, // For search test
   Check: (props: any) => <svg data-testid="lucide-icon-Check" {...props} />, // For selected indicator
-};
+});
 
+// Mock 'lucide-react'
+// Jest hoists jest.mock calls. The factory function is executed when the mock is prepared.
+// Calling getMockLucideIcons() inside ensures the object is created at that point.
 jest.mock('lucide-react', () => {
   const original = jest.requireActual('lucide-react');
   return {
     ...original,
-    icons: mockLucideIcons, // Override the icons export
+    icons: getMockLucideIcons(), // Call the function to get icons
+    // Also explicitly mock the Check component from lucide-react if it's directly imported by IconPickerInput
+    Check: (props: any) => <svg data-testid="lucide-icon-Check" {...props} />,
   };
 });
 
-// Mock LucideIcon component to verify icon rendering
+// Mock our custom '@/components/icons/lucide-icon' wrapper
 jest.mock('@/components/icons/lucide-icon', () => {
+  // This factory function is also subject to hoisting.
   return jest.fn(({ name, ...props }) => {
-    const MockedIcon = mockLucideIcons[name as keyof typeof mockLucideIcons] || mockLucideIcons.HelpCircle;
+    const iconsMap = getMockLucideIcons(); // Get icons when factory is run
+    const MockedIconComponent = iconsMap[name as keyof ReturnType<typeof getMockLucideIcons>] || iconsMap.HelpCircle;
     // @ts-ignore
-    return <MockedIcon data-testid={`lucide-icon-${name}`} {...props} />;
+    return <MockedIconComponent data-testid={`lucide-icon-${name}`} {...props} />;
   });
 });
 
 
 describe('IconPickerInput Component', () => {
   const mockOnChange = jest.fn();
+  // Obtain a reference to the mocked LucideIcon for assertions
+  // This needs to be done after jest.mock has run.
+  let MockedLucideIconComponent: jest.Mock;
+
+  beforeAll(() => {
+    // Require the mocked module after mocks are set up
+    MockedLucideIconComponent = require('@/components/icons/lucide-icon');
+  });
 
   beforeEach(() => {
     mockOnChange.mockClear();
-    // Clear any previously rendered LucideIcon mock calls if necessary
-    (LucideIcon as jest.Mock).mockClear();
+    if (MockedLucideIconComponent) {
+      MockedLucideIconComponent.mockClear();
+    }
   });
 
   test('renders with "Select an icon" when no value is provided', () => {
     render(<IconPickerInput value="" onChange={mockOnChange} />);
     expect(screen.getByRole('button', { name: /Select an icon/i })).toBeInTheDocument();
-    // Check if the fallback HelpCircle icon is rendered by LucideIcon mock
-    expect(LucideIcon).toHaveBeenCalledWith(expect.objectContaining({ name: 'HelpCircle' }), {});
+    expect(MockedLucideIconComponent).toHaveBeenCalledWith(expect.objectContaining({ name: 'HelpCircle' }), {});
   });
 
   test('renders with the provided icon name and icon when a value is present', () => {
     render(<IconPickerInput value="Package" onChange={mockOnChange} />);
     expect(screen.getByRole('button', { name: /Package/i })).toBeInTheDocument();
-    expect(LucideIcon).toHaveBeenCalledWith(expect.objectContaining({ name: 'Package' }), {});
+    expect(MockedLucideIconComponent).toHaveBeenCalledWith(expect.objectContaining({ name: 'Package' }), {});
   });
 
   test('opens popover with search and icon list on button click', async () => {
     const user = userEvent.setup();
     render(<IconPickerInput value="Package" onChange={mockOnChange} />);
-
     await user.click(screen.getByRole('button', { name: /Package/i }));
-
     expect(await screen.findByPlaceholderText(/Search icons.../i)).toBeInTheDocument();
-    // Check for a few popular icons that should be visible by default
-    expect(screen.getByTitle('Package')).toBeInTheDocument(); // Icon buttons have title attribute
+    expect(screen.getByTitle('Package')).toBeInTheDocument();
     expect(screen.getByTitle('Briefcase')).toBeInTheDocument();
   });
 
@@ -83,12 +95,10 @@ describe('IconPickerInput Component', () => {
     const user = userEvent.setup();
     render(<IconPickerInput value="" onChange={mockOnChange} />);
     await user.click(screen.getByRole('button', { name: /Select an icon/i }));
-
     const searchInput = await screen.findByPlaceholderText(/Search icons.../i);
     await user.type(searchInput, 'Alarm');
-
     expect(screen.queryByTitle('Package')).not.toBeInTheDocument();
-    expect(await screen.findByTitle('AlarmClock')).toBeInTheDocument(); // Should find AlarmClock
+    expect(await screen.findByTitle('AlarmClock')).toBeInTheDocument();
     expect(screen.queryByTitle('Airplay')).not.toBeInTheDocument();
   });
 
@@ -96,10 +106,8 @@ describe('IconPickerInput Component', () => {
     const user = userEvent.setup();
     render(<IconPickerInput value="" onChange={mockOnChange} />);
     await user.click(screen.getByRole('button', { name: /Select an icon/i }));
-
     const searchInput = await screen.findByPlaceholderText(/Search icons.../i);
     await user.type(searchInput, 'NonExistentIconName');
-
     expect(await screen.findByText(/No icons found for "NonExistentIconName"./i)).toBeInTheDocument();
   });
 
@@ -107,17 +115,11 @@ describe('IconPickerInput Component', () => {
     const user = userEvent.setup();
     render(<IconPickerInput value="" onChange={mockOnChange} />);
     await user.click(screen.getByRole('button', { name: /Select an icon/i }));
-
-    const searchInput = await screen.findByPlaceholderText(/Search icons.../i); // Popover is open
-    
-    // Click on the "Zap" icon
+    await screen.findByPlaceholderText(/Search icons.../i); // Wait for popover
     const zapIconButton = await screen.findByTitle('Zap');
     await user.click(zapIconButton);
-
     expect(mockOnChange).toHaveBeenCalledTimes(1);
     expect(mockOnChange).toHaveBeenCalledWith('Zap');
-
-    // Popover should close, so search input should not be visible
     await waitFor(() => {
       expect(screen.queryByPlaceholderText(/Search icons.../i)).not.toBeInTheDocument();
     });
@@ -125,30 +127,22 @@ describe('IconPickerInput Component', () => {
 
   test('displays selected icon with a check mark in the popover', async () => {
     const user = userEvent.setup();
-    render(<IconPickerInput value="Star" onChange={mockOnChange} />); // "Star" is the currently selected icon
+    render(<IconPickerInput value="Star" onChange={mockOnChange} />);
     await user.click(screen.getByRole('button', { name: /Star/i }));
 
-    // Check if the "Star" icon in the popover has the Check icon indicator
     const starIconButtonInPopover = await screen.findByTitle('Star');
-    // The Check icon is a child of the button, or positioned relative to it.
-    // We can check if the button has a specific class or if the check icon is rendered near it.
-    // Since the check is an SVG, we'll assume it's rendered by our mock of LucideIcon
-    // and we are checking for its presence within the button context.
-    // For the actual implementation, it's an absolutely positioned Check icon.
-    // This test focuses on the `value === iconName` condition in IconPickerInput.
-    // A more direct test would be to find the Check icon itself if it had a unique testId.
-    
-    // Let's assume the button gets a specific class when selected or contains the check icon.
-    // The mock for LucideIcon renders a <svg data-testid="lucide-icon-Check" />
-    // We need to check if the button for "Star" contains/renders this.
-    // Due to mocking, a direct structural check is tricky. We'll rely on visual implication or a wrapper class if added.
-    // The component does add `bg-primary/10 text-primary` to the selected button.
     expect(starIconButtonInPopover).toHaveClass('bg-primary/10');
-    
-    // Also expect the Check icon component to have been called when rendering "Star" button's indicator
-    // This depends on how we query for the Check icon rendered by LucideIcon mock.
-    // The mock renders <svg data-testid="lucide-icon-Check" />
-    // We need to verify that this specific SVG (for the checkmark) is rendered within the context of the "Star" button.
-    // This is difficult with the current mock structure. Let's rely on the class change for now.
+
+    // The IconPickerInput uses <Check /> directly from 'lucide-react' for the indicator.
+    // Our mock for 'lucide-react' provides our <svg data-testid="lucide-icon-Check" />.
+    // So, we search for that test ID.
+    const checkIcon = await screen.findByTestId('lucide-icon-Check');
+    expect(checkIcon).toBeInTheDocument();
+    // Check if it's a child of the star button, or at least associated.
+    // This can be tricky. If the class `bg-primary/10` is only on the selected button,
+    // and the check mark is only rendered for the selected button, this is a good indication.
+    expect(starIconButtonInPopover.contains(checkIcon)).toBe(true);
   });
 });
+
+    
