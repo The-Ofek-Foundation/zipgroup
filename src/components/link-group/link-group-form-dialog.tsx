@@ -2,7 +2,7 @@
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
-import React, { useEffect } from "react"; // Removed useState as it's not directly used for local state here
+import React, { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -77,10 +77,9 @@ export function LinkGroupFormDialog({
         });
       }
     }
-  // More granular dependencies: re-run if isOpen changes, or if the ID of the initialData changes,
-  // or if other key fields of initialData change. This makes it more stable against
-  // simple reference changes of the initialData object if its content is the same.
-  }, [isOpen, initialData?.id, initialData?.name, initialData?.icon, JSON.stringify(initialData?.urls), reset]);
+  // This effect should primarily run when the dialog opens/closes (isOpen changes)
+  // or when the fundamental item being edited changes (initialData.id).
+  }, [isOpen, initialData?.id, reset]); // Simplified and focused dependencies
 
   const handleFormSubmit = (data: LinkGroupFormData) => {
     onSubmit({
