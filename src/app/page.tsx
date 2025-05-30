@@ -1,23 +1,13 @@
 
 "use client";
 
-import React, { useState, useEffect, Suspense, useCallback, useRef } from "react";
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from 'next/navigation';
 import { Skeleton } from "@/components/ui/skeleton";
-import { AppFooter } from "@/components/layout/app-footer";
-import { useAppData } from "@/hooks/use-app-data";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, FileText, Layers, SunMoon, Palette, Clock, Share2, Trash2, Info, Save, Loader2, HelpCircle, ClipboardCopy } from "lucide-react";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
-import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
-
-// Direct static imports instead of React.lazy
+import { AppFooter } from "@/components/layout/app-footer"; // For skeleton
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { ActualPageContent } from "@/components/page-view/actual-page-content";
-
+import type { AppData } from "@/lib/types";
 
 function PageSkeletonForSuspense() {
   return (
@@ -44,94 +34,58 @@ function PageSkeletonForSuspense() {
           <Skeleton className="h-5 w-2/3 mx-auto" />
         </div>
       </main>
-      <AppFooter onCreateNewPage={() => {
-        console.log("Create new page from skeleton footer clicked (dummy)");
-      }} />
+      {/* Using a dummy onCreateNewPage for the skeleton's footer */}
+      <AppFooter onCreateNewPage={() => console.log("Dummy create new page from skeleton footer")} />
     </div>
   );
 }
 
-function PageRouter() {
+// This component decides whether to render the Dashboard or ActualPageContent (for shared data)
+// Individual pages are now handled by /p/[pageId]/page.tsx
+function RootPageContent() {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const [renderMode, setRenderMode] = useState<'loading' | 'dashboard' | 'page'>('loading');
-  const [urlHashForKeystr, setUrlHashForKeystr] = useState<string | null>(null);
+  const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
+  const [isLoadingSharedData, setIsLoadingSharedData] = useState(true);
 
   useEffect(() => {
-    // This effect updates urlHashForKeystr whenever the hash actually changes in the URL
-    const updateHashStateFromLocation = () => {
-      if (typeof window !== 'undefined') {
-        const currentActualHash = window.location.hash.substring(1).split('?')[0];
-        setUrlHashForKeystr(currentActualHash || null);
+    // This effect runs only once on the client to check for sharedData
+    const sharedDataParam = searchParams.get('sharedData');
+    if (sharedDataParam) {
+      try {
+        const decodedJson = decodeURIComponent(sharedDataParam);
+        const parsedData = JSON.parse(decodedJson) as AppData;
+        setInitialSharedData(parsedData);
+        // Do NOT clear sharedData from URL here, ActualPageContent handles it
+      } catch (error) {
+        console.error("Failed to parse sharedData on root page:", error);
+        // Potentially show an error toast or redirect
       }
-    };
-    updateHashStateFromLocation(); // Initial check
-    window.addEventListener('hashchange', updateHashStateFromLocation);
-    return () => window.removeEventListener('hashchange', updateHashStateFromLocation);
-  }, []); // Empty dependency array: runs once on mount to set up listener
+    }
+    setIsLoadingSharedData(false);
+  }, [searchParams]); // Runs when searchParams object changes
 
-
-  useEffect(() => {
-    // Effect to determine renderMode based on URL state (hash, sharedData)
-    const determineMode = () => {
-      if (typeof window === 'undefined') {
-        setRenderMode('loading'); // Should ideally not happen if window check is above
-        return;
-      }
-
-      const currentPath = pathname; // from usePathname() - this is reactive
-      const hash = window.location.hash.substring(1).split('?')[0]; // direct read
-      const sharedDataParam = searchParams.get('sharedData'); // from useSearchParams() - this is reactive
-
-      if (currentPath === '/' && !hash && !sharedDataParam) {
-        setRenderMode('dashboard');
-      } else {
-        setRenderMode('page');
-      }
-    };
-
-    determineMode(); // Initial determination
-
-    // Listen for hash changes to re-determine mode
-    // This is important for navigation like clicking "Home" when on a page with a hash
-    const handleHashChangeForMode = () => {
-      determineMode();
-    };
-    window.addEventListener('hashchange', handleHashChangeForMode);
-
-    // Cleanup listener on component unmount
-    return () => {
-      window.removeEventListener('hashchange', handleHashChangeForMode);
-    };
-  }, [pathname, searchParams]); // Dependencies: pathname and searchParams ensure this re-runs if query params or path change
-
-
-  if (renderMode === 'loading') {
+  if (isLoadingSharedData) {
     return <PageSkeletonForSuspense />;
   }
 
-  if (renderMode === 'dashboard') {
-    return (
-      <TooltipProvider delayDuration={100}>
-        <DashboardView />
-      </TooltipProvider>
-    );
+  if (initialSharedData) {
+    // Render ActualPageContent in preview mode for the shared data
+    // The key ensures re-mount if sharedData content somehow changes, though unlikely for this param.
+    return <ActualPageContent key={`shared-${JSON.stringify(initialSharedData).substring(0,20)}`} pageId={null} initialSharedData={initialSharedData} />;
   }
-  
-  // renderMode must be 'page'
-  // Generate a key that changes when transitioning from shared/pristine to a hashed page
-  // or from one hash to another.
-  const sharedDataParamValue = searchParams.get('sharedData');
-  const pageKey = urlHashForKeystr || (sharedDataParamValue ? `shared-${sharedDataParamValue.substring(0,10)}` : 'new-unsaved-page');
-  
-  return <ActualPageContent key={pageKey} routeHash={urlHashForKeystr} />;
+
+  // Default to DashboardView if no sharedData
+  return <DashboardView />;
 }
 
 
 export default function Home() {
   return (
+    // Suspense around RootPageContent is good practice if it or its children might suspend
+    // e.g. due to data fetching or other async operations not handled by Next.js server components.
+    // Since RootPageContent now uses useSearchParams, it must be wrapped in Suspense.
     <Suspense fallback={<PageSkeletonForSuspense />}>
-      <PageRouter />
+      <RootPageContent />
     </Suspense>
   );
 }

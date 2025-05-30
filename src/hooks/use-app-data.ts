@@ -4,13 +4,12 @@
 import type { AppData, LinkGroup } from "@/lib/types";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from 'next/navigation';
-import { generateRandomHash } from "@/lib/utils";
+import { generateRandomHash } from "@/lib/utils"; // Renamed or use as is for ID generation
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
-const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order"; // Also used in dashboard-view
+const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
 const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
 const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
-
 
 const defaultAppDataBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryColor' | 'lastModified'> = {
   linkGroups: [],
@@ -21,178 +20,137 @@ export const defaultSampleAppData: Omit<AppData, 'lastModified'> = {
   theme: 'light',
   customPrimaryColor: undefined,
   linkGroups: [
-    {
-      id: "sample-group-1",
-      name: "Personal & Professional",
-      icon: "Briefcase",
-      urls: [
-        "ofek.phd",
-        "theofekfoundation.org",
-      ],
-    },
-    {
-      id: "sample-group-2",
-      name: "Foundation Projects",
-      icon: "Library",
-      urls: [
-        "blog.theofekfoundation.org",
-        "songs.theofekfoundation.org",
-      ],
-    },
-    {
-      id: "sample-group-3",
-      name: "Family Site",
-      icon: "Home",
-      urls: [
-        "gila.family",
-      ],
-    },
+    { id: "sample-group-1", name: "Personal & Professional", icon: "Briefcase", urls: ["ofek.phd", "theofekfoundation.org"] },
+    { id: "sample-group-2", name: "Foundation Projects", icon: "Library", urls: ["blog.theofekfoundation.org", "songs.theofekfoundation.org"] },
+    { id: "sample-group-3", name: "Family Site", icon: "Home", urls: ["gila.family"] },
   ],
 };
 
-
-export function useAppData(initialExternalData?: Partial<AppData>, explicitRouteHash?: string | null) {
+// pageId prop is the ID from the URL path, e.g., for /p/[pageId]
+// initialExternalData is for loading shared data via query param
+export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPath?: string | null) {
   const [appData, setAppData] = useState<AppData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentHash, setCurrentHash] = useState<string | null>(null);
+  const [currentPageId, setCurrentPageId] = useState<string | null>(pageIdFromPath || null);
 
   const router = useRouter();
   const pathname = usePathname();
+  const currentPageIdRef = useRef<string | null>(currentPageId);
 
-  const currentHashRef = useRef<string | null>(null);
   useEffect(() => {
-    currentHashRef.current = currentHash;
-  }, [currentHash]);
+    currentPageIdRef.current = currentPageId;
+  }, [currentPageId]);
 
-  const saveData = (hash: string, dataToSave: AppData) => {
-    if (!hash) return;
+  const saveData = (id: string, dataToSave: AppData) => {
+    if (!id) return;
     try {
       const finalData = { ...dataToSave, lastModified: Date.now() };
-      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${hash}`, JSON.stringify(finalData));
-      
-      // Ensure this page is in the dashboard order
+      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${id}`, JSON.stringify(finalData));
+
       const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
-      let order: string[] = [];
-      if (orderJson) {
-        try {
-          order = JSON.parse(orderJson);
-        } catch { /* ignore parse error, start fresh */ }
-      }
-      if (!order.includes(hash)) {
-        order.unshift(hash); // Add new/updated pages to the front
+      let order: string[] = orderJson ? JSON.parse(orderJson) : [];
+      if (!order.includes(id)) {
+        order.unshift(id);
         localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(order));
       }
-
     } catch (error) {
       console.error("Failed to save data to local storage:", error);
     }
   };
 
-  const deleteData = (hash: string) => {
-    if (!hash) return;
+  const deleteData = (id: string) => {
+    if (!id) return;
     try {
-      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
+      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${id}`);
       const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
       if (orderJson) {
-          let order = JSON.parse(orderJson) as string[];
-          order = order.filter(h => h !== hash);
-          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(order));
+        let order = JSON.parse(orderJson) as string[];
+        order = order.filter(pId => pId !== id);
+        localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(order));
       }
     } catch (error) {
-        console.error("Failed to delete data from local storage:", error);
+      console.error("Failed to delete data from local storage:", error);
     }
   };
 
-  const loadData = (hash: string): AppData | null => {
-    if (!hash) return null;
-    
+  const loadData = (id: string): AppData | null => {
+    if (!id) return null;
     try {
-      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${hash}`);
+      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${id}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        // Simple migration for old page titles if necessary
         if (parsedData.pageTitle && parsedData.pageTitle.startsWith("LinkWarp Page")) {
             parsedData.pageTitle = parsedData.pageTitle.replace("LinkWarp Page", "ZipGroup Page");
         }
         const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         return {
           ...parsedData,
-          theme: parsedData.theme || systemTheme, // Ensure theme exists
+          theme: parsedData.theme || systemTheme,
         };
-      } else { // No stored data found for this hash
+      } else {
+        // If no data found for this ID, return a default new page structure.
+        // DO NOT save it here. Saving happens on user interaction.
         const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        const newDefaultPageData: AppData = {
+        return {
           ...defaultAppDataBase,
-          pageTitle: "New ZipGroup Page",
+          pageTitle: "New ZipGroup Page", // Default for a truly new/unknown page ID
           theme: systemTheme,
           customPrimaryColor: undefined,
-          lastModified: Date.now() // Set lastModified, it will be persisted if user edits
+          lastModified: undefined, // Will be set on first save
         };
-        // DO NOT SAVE HERE. Let user interaction trigger save via updateAppData.
-        return newDefaultPageData;
       }
     } catch (error) {
-      console.error("Failed to load data from local storage for hash:", hash, error);
+      console.error("Failed to load data from local storage for ID:", id, error);
     }
     return null;
   };
 
-  const _resolveAndSetAppData = (path: string, hash: string | null, sharedDataParam?: Partial<AppData>) => {
+  // Centralized logic to set appData based on context
+  const _resolveAndSetAppData = useCallback((currentPath: string, idForPage: string | null, sharedData?: Partial<AppData>) => {
     setIsLoading(true);
     const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
-    if (path === '/sample' && !hash && !sharedDataParam) {
+    if (currentPath === '/sample' && !idForPage && !sharedData) {
       const samplePageData: AppData = {
         ...defaultSampleAppData,
         theme: defaultSampleAppData.theme || systemTheme,
-      } as AppData; // Cast to AppData as lastModified might be missing
+      } as AppData;
       setAppData(samplePageData);
-      setCurrentHash(null);
-    } else if (sharedDataParam && !hash) {
+      setCurrentPageId(null);
+    } else if (sharedData && !idForPage) { // Shared data preview (typically loaded on root, then handled by ActualPageContent)
       const sharedPageData: AppData = {
         ...defaultAppDataBase,
-        pageTitle: sharedDataParam.pageTitle || "ZipGroup Shared Page",
-        linkGroups: sharedDataParam.linkGroups || [],
-        theme: sharedDataParam.theme || systemTheme,
-        customPrimaryColor: sharedDataParam.customPrimaryColor,
-        // lastModified will be undefined, set upon saving
+        pageTitle: sharedData.pageTitle || "ZipGroup Shared Page",
+        linkGroups: sharedData.linkGroups || [],
+        theme: sharedData.theme || systemTheme,
+        customPrimaryColor: sharedData.customPrimaryColor,
+        lastModified: undefined,
       };
       setAppData(sharedPageData);
-      setCurrentHash(null);
-    } else if (hash) {
-      const loaded = loadData(hash);
+      setCurrentPageId(null);
+    } else if (idForPage) { // A specific page ID from path /p/[pageId]
+      const loaded = loadData(idForPage);
       setAppData(loaded);
-      setCurrentHash(hash);
+      setCurrentPageId(idForPage);
     } else {
-      // This case is primarily for the PageRouter deciding to show Dashboard.
-      // ActualPageContent shouldn't be rendered if appData is null here.
-      setAppData(null);
-      setCurrentHash(null);
+      // This case should ideally not be hit by ActualPageContent if pageIdFromPath is always provided
+      // For other contexts (like useAppData in DashboardView, if any) or if it's a new page scenario.
+      setAppData(null); // Or a minimal default if needed for Dashboard
+      setCurrentPageId(null);
     }
     setIsLoading(false);
-  };
+  }, [loadData]); // loadData is stable
+
 
   useEffect(() => {
-    _resolveAndSetAppData(pathname, explicitRouteHash, initialExternalData);
-
-    const handleHashChange = () => {
-      if (typeof window === 'undefined') return;
-      const newHashValueWithParams = window.location.hash.substring(1);
-      const newHashValue = newHashValueWithParams.split('?')[0] || null;
-      // When hash changes, initialExternalData is not relevant from URL for this specific listener
-      _resolveAndSetAppData(window.location.pathname, newHashValue, undefined);
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-    };
-  }, [pathname, explicitRouteHash, initialExternalData]);
+    // This effect handles the initial data resolution based on props
+    _resolveAndSetAppData(pathname, pageIdFromPath, initialExternalData);
+  }, [pathname, pageIdFromPath, initialExternalData, _resolveAndSetAppData]);
 
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
-      const isUnsavedContext = currentHashRef.current === null;
+      const isUnsavedContext = currentPageIdRef.current === null; // Sample page or shared preview before save
       const currentSystemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
       let baseData: AppData;
@@ -208,39 +166,29 @@ export function useAppData(initialExternalData?: Partial<AppData>, explicitRoute
             theme: initialExternalData.theme || currentSystemTheme,
             customPrimaryColor: initialExternalData.customPrimaryColor,
          } as AppData;
-      } else {
-        // This path should ideally not be hit if ActualPageContent isn't rendered without appData.
-        // But if it is, provide a very basic default.
+      } else { // Fallback for a completely new, unsaved context (e.g., if a new page was started but not yet saved)
         baseData = { ...defaultAppDataBase, pageTitle: "New ZipGroup Page", theme: currentSystemTheme, lastModified: undefined } as AppData;
       }
 
       const newLocalData: AppData = { ...baseData, ...updates };
 
-      if (isUnsavedContext) { // For /sample page or shared page preview before saving
-        return { ...newLocalData, lastModified: baseData.lastModified }; // Keep original lastModified
+      if (isUnsavedContext) {
+        return { ...newLocalData, lastModified: baseData.lastModified };
       }
 
-      // If it's a saved page (currentHash exists), update lastModified and save
       const newDataToSave = { ...newLocalData, lastModified: Date.now() };
-
-      // Auto-delete "empty" pages only if they were previously saved and now become conventionally empty
-      if (currentHashRef.current &&
+      if (currentPageIdRef.current &&
           newDataToSave.linkGroups.length === 0 &&
-          newDataToSave.pageTitle === "New ZipGroup Page" && // Specific default title check
-          !newDataToSave.customPrimaryColor // And no custom color
-          // We don't check theme, as it could be user's preference even for an "empty" page
-          ) {
-        deleteData(currentHashRef.current);
-        // router.push('/'); // Optionally redirect, or let parent component handle UI for deleted page.
-        // Returning null might be problematic if the component expects AppData.
-        // Consider how UI should react. For now, let it clear from storage.
-        return null; 
+          newDataToSave.pageTitle === "New ZipGroup Page" &&
+          !newDataToSave.customPrimaryColor) {
+        deleteData(currentPageIdRef.current);
+        return null;
       } else {
-        saveData(currentHashRef.current!, newDataToSave);
+        saveData(currentPageIdRef.current!, newDataToSave);
         return newDataToSave;
       }
     });
-  }, [pathname, initialExternalData, saveData, deleteData]); // Dependencies for updateAppData
+  }, [pathname, initialExternalData, saveData, deleteData]);
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -258,19 +206,20 @@ export function useAppData(initialExternalData?: Partial<AppData>, explicitRoute
     updateAppData({ customPrimaryColor: color });
   }, [updateAppData]);
 
-  const createNewPageFromAppData = useCallback(() => { // For saving sample or shared page
+  const createNewPageFromAppData = useCallback(() => {
     if (!appData) return null;
 
-    const newHash = generateRandomHash();
+    const newPageId = generateRandomHash(); // Use your ID generation function
     const dataToSave: AppData = {
       ...appData,
-      pageTitle: appData.pageTitle, // Keep the title from sample/shared or user edit
+      pageTitle: appData.pageTitle, // Retain current title (from sample, shared, or edited new page)
       lastModified: Date.now()
     };
-
-    saveData(newHash, dataToSave);
-    router.push('/#' + newHash); // This should trigger PageRouter to render ActualPageContent with new hash
-    return newHash;
+    // Logic to rename generic sample title if it was not edited was removed in previous step
+    // Now it respects the current title of the sample/shared page
+    saveData(newPageId, dataToSave);
+    router.push(`/p/${newPageId}`); // Navigate to the new page using path-based routing
+    return newPageId;
   }, [appData, saveData, router]);
 
   const createNewBlankPageAndRedirect = useCallback(() => {
@@ -281,29 +230,26 @@ export function useAppData(initialExternalData?: Partial<AppData>, explicitRoute
         const storedThemeMode = localStorage.getItem(DASHBOARD_THEME_MODE_KEY) as AppData['theme'] | null;
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         dashboardThemeMode = storedThemeMode || systemTheme;
-
         const storedCustomColor = localStorage.getItem(DASHBOARD_CUSTOM_COLOR_KEY);
-        if (storedCustomColor) {
-            dashboardCustomColor = storedCustomColor;
-        }
+        if (storedCustomColor) dashboardCustomColor = storedCustomColor;
     }
 
-    const newHash = generateRandomHash();
+    const newPageId = generateRandomHash();
     const newPageData: AppData = {
-      pageTitle: "New ZipGroup Page",
+      pageTitle: "New ZipGroup Page", // Default title for truly blank pages
       linkGroups: [],
       theme: dashboardThemeMode,
       customPrimaryColor: dashboardCustomColor,
       lastModified: Date.now(),
     };
-    saveData(newHash, newPageData);
-    router.push(`/#${newHash}`);
-    return newHash;
+    saveData(newPageId, newPageData);
+    router.push(`/p/${newPageId}`); // Navigate to the new page
+    return newPageId;
   }, [router, saveData]);
 
   const deleteCurrentPageAndRedirect = useCallback(() => {
-    if (currentHashRef.current) {
-        deleteData(currentHashRef.current);
+    if (currentPageIdRef.current) {
+        deleteData(currentPageIdRef.current);
         router.push('/'); // Navigate to home/dashboard
     }
   }, [router, deleteData]);
@@ -315,7 +261,7 @@ export function useAppData(initialExternalData?: Partial<AppData>, explicitRoute
     setPageTitle,
     setLinkGroups,
     setTheme,
-    currentHash,
+    currentPageId,
     createNewPageFromAppData,
     createNewBlankPageAndRedirect,
     setCustomPrimaryColor,

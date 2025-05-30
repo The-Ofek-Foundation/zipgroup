@@ -9,46 +9,47 @@ import { Zap, HomeIcon as PageHomeIcon, Share2, PlusCircle, BookOpenCheck, Trash
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePathname } from 'next/navigation';
+import { useAppData } from "@/hooks/use-app-data"; // For "New Page" action
 
 
 interface AppHeaderProps {
-  onCreateNewPage: () => void;
-
-  customPrimaryColor: string | undefined;
-  onSetCustomPrimaryColor: (color?: string) => void;
-  
+  // For direct control of theme/color, typically from Dashboard's useDashboardTheme
+  customPrimaryColor?: string | undefined;
+  onSetCustomPrimaryColor?: (color?: string) => void;
   themeMode?: 'light' | 'dark';
   onSetThemeMode?: (theme: 'light' | 'dark') => void;
 
+  // For individual page actions / context
+  onCreateNewPage: () => void; // Now always required, can be from useAppData
+  onInitiateShare?: () => void;
+  canShareCurrentPage?: boolean;
+  isReadOnlyPreview?: boolean;
+  onInitiateDelete?: () => void;
+  canDeleteCurrentPage?: boolean;
+
+  // Visibility toggles
   showHomePageLink?: boolean;
   showSamplePageLink?: boolean;
   showShareButton?: boolean;
-  
-  onInitiateShare?: () => void;
-  canShareCurrentPage?: boolean;
-  
-  isReadOnlyPreview?: boolean;
-  joyrideProps?: Record<string, unknown>; 
 
-  onInitiateDelete?: () => void;
-  canDeleteCurrentPage?: boolean;
+  joyrideProps?: Record<string, unknown>;
 }
 
 export function AppHeader({
-  onCreateNewPage,
-  customPrimaryColor,
-  onSetCustomPrimaryColor,
-  themeMode,
-  onSetThemeMode,
-  showHomePageLink = true,
-  showSamplePageLink = false,
-  showShareButton = true,
+  customPrimaryColor, // From page's appData or dashboard's theme hook
+  onSetCustomPrimaryColor, // From page's appData or dashboard's theme hook
+  themeMode, // From page's appData (via ThemeProvider context) or dashboard's theme hook
+  onSetThemeMode, // From page's appData or dashboard's theme hook
+  onCreateNewPage, // Typically from useAppData
   onInitiateShare,
   canShareCurrentPage = false,
   isReadOnlyPreview = false,
-  joyrideProps = {},
   onInitiateDelete,
   canDeleteCurrentPage = false,
+  showHomePageLink = true,
+  showSamplePageLink = false,
+  showShareButton = true,
+  joyrideProps = {},
 }: AppHeaderProps) {
   const pathname = usePathname();
 
@@ -76,7 +77,7 @@ export function AppHeader({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Go to Home Page</p>
+                <p>Go to Home</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -85,12 +86,9 @@ export function AppHeader({
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                onClick={onCreateNewPage}
+                onClick={onCreateNewPage} // This will now always create /p/[newPageId]
                 size="sm"
-                // New Page button is disabled on shared previews, but enabled on /sample 
-                // because clicking it from /sample effectively "saves" the sample.
-                // It should also be enabled on normal pages.
-                disabled={isReadOnlyPreview && pathname !== '/sample'} 
+                disabled={isReadOnlyPreview && pathname === '/'} // Disable for shared page preview at root
                 aria-label="New Page"
               >
                 <PlusCircle className="h-4 w-4 md:mr-2" />
@@ -165,8 +163,8 @@ export function AppHeader({
             joyrideProps={{ "data-joyride": "custom-color-picker" }}
           />
           <ThemeSwitcher
-            theme={themeMode} 
-            setTheme={onSetThemeMode} 
+            theme={themeMode}
+            setTheme={onSetThemeMode}
             disabled={isReadOnlyPreview}
             joyrideProps={{ "data-joyride": "theme-switcher" }}
           />

@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2, GripVertical } from "lucide-react";
+import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAppData } from "@/hooks/use-app-data";
-import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
+import { useDashboardTheme } from "@/hooks/use-dashboard-theme"; // For dashboard's own theme
+import { useAppData } from "@/hooks/use-app-data"; // For createNewBlankPageAndRedirect
 import { hexToHslValues } from "@/lib/color-utils";
 import { format } from 'date-fns';
 import {
@@ -39,14 +39,15 @@ import { EmptyStateMessage } from "@/components/ui/empty-state-message";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
 
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Used to find pages
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
-const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; // For /sample page joyride
+// Dashboard theme keys are managed by useDashboardTheme hook now
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
+const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
+
 
 interface StoredPage {
-  hash: string;
+  id: string; // Was hash, now represents pageId for path-based routing
   title: string;
   linkGroupCount: number;
   theme: 'light' | 'dark';
@@ -56,8 +57,8 @@ interface StoredPage {
 
 interface SortablePageCardItemProps {
   page: StoredPage;
-  onDelete: (hash: string) => void;
-  onShare: (hash: string) => void;
+  onDelete: (id: string) => void;
+  onShare: (id: string) => void;
 }
 
 function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemProps) {
@@ -69,11 +70,12 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: page.hash });
+  } = useSortable({ id: page.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: transition || 'transform 250ms ease',
+    zIndex: isDragging ? 50 : 'auto', // Ensure dragging item is on top
   };
 
   const stopPropagationForButtons = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
@@ -81,7 +83,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
   };
 
   const handleDeleteConfirm = () => {
-    onDelete(page.hash);
+    onDelete(page.id);
     setIsDeleteDialogOpen(false);
   };
 
@@ -90,8 +92,8 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
       ref={setNodeRef}
       style={style}
       className={cn(
-        "touch-manipulation",
-        isDragging ? "z-50 opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "z-auto cursor-grab"
+        "touch-manipulation", // For better touch interactions on mobile
+        isDragging ? "opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "cursor-grab"
       )}
       {...attributes}
       {...listeners}
@@ -101,11 +103,10 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
       >
         <CardHeader className="pb-4">
           <Link
-            href={`/#${page.hash}`}
+            href={`/p/${page.id}`} // Path-based routing
             className="block group"
-            onClick={stopPropagationForButtons}
-            onPointerDown={stopPropagationForButtons} // Stop propagation for link click
-            onKeyDown={stopPropagationForButtons}
+            onClick={stopPropagationForButtons} // Allow link click without drag
+            onPointerDown={stopPropagationForButtons}
             tabIndex={0}
           >
             <CardTitle className="text-xl font-semibold text-primary group-hover:underline truncate" title={page.title}>
@@ -113,7 +114,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
             </CardTitle>
           </Link>
           <CardDescription className="text-xs pt-1">
-            Hash: <code className="bg-muted px-1 py-0.5 rounded">{page.hash}</code>
+            ID: <code className="bg-muted px-1 py-0.5 rounded">{page.id}</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm flex-grow">
@@ -151,7 +152,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={(e) => { stopPropagationForButtons(e); onShare(page.hash); }}
+                  onClick={(e) => { stopPropagationForButtons(e); onShare(page.id); }}
                   onPointerDown={stopPropagationForButtons}
                   aria-label={`Share page ${page.title}`}
                 >
@@ -162,14 +163,13 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                 <p>Copy share link for this page</p>
               </TooltipContent>
             </Tooltip>
-
-            <Tooltip>
+             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="destructive"
                   size="sm"
                   aria-label={`Delete page ${page.title}`}
-                  onClick={() => setIsDeleteDialogOpen(true)} 
+                  onClick={() => setIsDeleteDialogOpen(true)}
                   // onPointerDown is NOT stopped for DialogTrigger to allow dnd-kit activation constraints
                 >
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -181,13 +181,13 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
             </Tooltip>
         </CardFooter>
       </Card>
-      <ConfirmationDialog
+       <ConfirmationDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         title="Are you absolutely sure?"
         description={
           <>
-            This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (hash: {page.hash}) and all its link groups.
+            This action cannot be undone. This will permanently delete the page <strong className="mx-1">{page.title}</strong> (ID: {page.id}) and all its link groups.
           </>
         }
         onConfirm={handleDeleteConfirm}
@@ -202,6 +202,7 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
+  // useAppData hook here is for createNewBlankPageAndRedirect action
   const { createNewBlankPageAndRedirect } = useAppData();
 
 
@@ -222,20 +223,16 @@ export function DashboardView() {
     if (typeof window !== 'undefined') {
       try {
         const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
-        if (orderJson) {
-          initialStoredOrder = JSON.parse(orderJson);
-        }
-      } catch (error) {
-        console.error("Failed to parse page order from local storage:", error);
-        initialStoredOrder = [];
-      }
+        if (orderJson) initialStoredOrder = JSON.parse(orderJson);
+      } catch (error) { console.error("Failed to parse page order from local storage:", error); }
 
       const excludedKeys = [
         DASHBOARD_ORDER_KEY,
-        DASHBOARD_THEME_MODE_KEY,
-        DASHBOARD_CUSTOM_COLOR_KEY,
+        // Dashboard theme keys are now dynamically fetched by useDashboardTheme, no need to exclude them here manually
+        "linkwarp_dashboard_theme_mode", // Explicitly keeping for safety
+        "linkwarp_dashboard_custom_primary_color", // Explicitly keeping for safety
         JOYRIDE_SAMPLE_TAKEN_KEY,
-        "linkwarp_joyride_pristine_taken" // From an older joyride version
+        JOYRIDE_PRISTINE_TAKEN_KEY,
       ];
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -249,24 +246,22 @@ export function DashboardView() {
             const storedData = localStorage.getItem(key);
             if (storedData) {
               const parsedData = JSON.parse(storedData) as AppData;
-              const hash = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
+              const pageId = key.substring(LOCAL_STORAGE_PREFIX_DASHBOARD.length);
 
-              // Validate if parsedData looks like AppData
               if (typeof parsedData.pageTitle !== 'string' || !Array.isArray(parsedData.linkGroups)) {
                 console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
                 continue;
               }
 
-
-              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `New ZipGroup Page`) {
+              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `New ZipGroup Page` && !parsedData.customPrimaryColor) {
                 localStorage.removeItem(key);
-                initialStoredOrder = initialStoredOrder.filter(h => h !== hash); // Also remove from order if it was there
+                initialStoredOrder = initialStoredOrder.filter(id => id !== pageId);
                 continue;
               }
 
               allLoadedPages.push({
-                hash: hash,
-                title: parsedData.pageTitle || `New ZipGroup Page`,
+                id: pageId,
+                title: parsedData.pageTitle || `ZipGroup Page`,
                 linkGroupCount: parsedData.linkGroups?.length || 0,
                 theme: parsedData.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
                 customPrimaryColor: parsedData.customPrimaryColor,
@@ -279,35 +274,28 @@ export function DashboardView() {
         }
       }
 
-      const existingPageHashes = new Set(allLoadedPages.map(p => p.hash));
-      const validStoredOrder = initialStoredOrder.filter(hash => existingPageHashes.has(hash));
+      const existingPageIds = new Set(allLoadedPages.map(p => p.id));
+      const validStoredOrder = initialStoredOrder.filter(id => existingPageIds.has(id));
 
       if (validStoredOrder.length !== initialStoredOrder.length) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
 
-      const pageMap = new Map(allLoadedPages.map(p => [p.hash, p]));
+      const pageMap = new Map(allLoadedPages.map(p => [p.id, p]));
       const finalPages: StoredPage[] = [];
-      const processedHashes = new Set<string>();
+      const processedIds = new Set<string>();
 
-      for (const hash of validStoredOrder) {
-        const page = pageMap.get(hash);
+      for (const id of validStoredOrder) {
+        const page = pageMap.get(id);
         if (page) {
           finalPages.push(page);
-          processedHashes.add(hash);
+          processedIds.add(id);
         }
       }
 
       const remainingPages = allLoadedPages
-        .filter(p => !processedHashes.has(p.hash))
-        .sort((a, b) => {
-            if (a.lastModified && b.lastModified) {
-                return b.lastModified - a.lastModified; // Newest first
-            }
-            if (a.lastModified) return -1;
-            if (b.lastModified) return 1;
-            return a.title.localeCompare(b.title); // Fallback to title sort
-        });
+        .filter(p => !processedIds.has(p.id))
+        .sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0) || a.title.localeCompare(b.title));
 
       setPages([...finalPages, ...remainingPages]);
     }
@@ -322,11 +310,9 @@ export function DashboardView() {
 
   useEffect(() => {
     if (isThemeLoading || typeof window === 'undefined') return;
-
     const root = document.documentElement;
     root.classList.remove("light", "dark");
     root.classList.add(dashboardThemeMode);
-
     if (dashboardCustomPrimaryColor) {
       const hslValues = hexToHslValues(dashboardCustomPrimaryColor);
       if (hslValues) {
@@ -348,44 +334,39 @@ export function DashboardView() {
   }, [dashboardThemeMode, dashboardCustomPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
-    createNewBlankPageAndRedirect();
+    createNewBlankPageAndRedirect(); // This function now redirects to /p/[newPageId]
   };
 
-  const handleDeletePage = (hashToDelete: string) => {
+  const handleDeletePage = (idToDelete: string) => {
     try {
-      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}${hashToDelete}`);
+      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}${idToDelete}`);
       setPages(prevPages => {
-        const newPages = prevPages.filter(p => p.hash !== hashToDelete);
-        const newOrder = newPages.map(p => p.hash);
+        const newPages = prevPages.filter(p => p.id !== idToDelete);
+        const newOrder = newPages.map(p => p.id);
         localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrder));
         return newPages;
       });
       toast({
         title: "Page Deleted",
-        description: `The page "${pages.find(p => p.hash === hashToDelete)?.title || hashToDelete}" has been removed.`,
+        description: `The page "${pages.find(p => p.id === idToDelete)?.title || idToDelete}" has been removed.`,
       });
     } catch (error) {
       console.error("Failed to delete page:", error);
-      toast({
-        title: "Error",
-        description: "Could not delete the page.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Could not delete the page.", variant: "destructive" });
     }
   };
 
-  const handleSharePage = async (hash: string) => {
+  const handleSharePage = async (id: string) => {
     try {
-      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}${hash}`);
+      const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}${id}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { lastModified, ...shareableData } = parsedData;
-
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
-        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`; // No hash in share URL
-
+        // Share link points to root with sharedData param
+        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
         await navigator.clipboard.writeText(shareUrl);
         toast({
           title: "Share Link Copied!",
@@ -397,38 +378,26 @@ export function DashboardView() {
       }
     } catch (error) {
       console.error("Failed to create share link:", error);
-      toast({
-        title: "Share Failed",
-        description: "Could not create or copy the share link.",
-        variant: "destructive",
-      });
+      toast({ title: "Share Failed", description: "Could not create or copy the share link.", variant: "destructive" });
     }
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 150,
-        tolerance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEndPages = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
       setPages((currentPages) => {
-        const oldIndex = currentPages.findIndex((p) => p.hash === active.id);
-        const newIndex = currentPages.findIndex((p) => p.hash === over.id);
+        const oldIndex = currentPages.findIndex((p) => p.id === active.id);
+        const newIndex = currentPages.findIndex((p) => p.id === over.id);
         if (oldIndex === -1 || newIndex === -1) return currentPages;
-
         const reorderedPages = arrayMove(currentPages, oldIndex, newIndex);
-        const newOrderOfHashes = reorderedPages.map(p => p.hash);
+        const newOrderOfIds = reorderedPages.map(p => p.id);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrderOfHashes));
+          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(newOrderOfIds));
         }
         return reorderedPages;
       });
@@ -465,9 +434,9 @@ export function DashboardView() {
             onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
             themeMode={dashboardThemeMode}
             onSetThemeMode={setDashboardThemeMode}
-            showHomePageLink={false}
+            showHomePageLink={false} // Already on Home
             showSamplePageLink={true}
-            showShareButton={false}
+            showShareButton={false} // No global share for dashboard
         />
         <main className="flex-grow container mx-auto p-4 md:p-8">
           {pages.length === 0 ? (
@@ -492,11 +461,11 @@ export function DashboardView() {
             />
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
-              <SortableContext items={pages.map(p => p.hash)} strategy={rectSortingStrategy}>
+              <SortableContext items={pages.map(p => p.id)} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {pages.map(page => (
                     <SortablePageCardItem
-                      key={page.hash}
+                      key={page.id}
                       page={page}
                       onDelete={handleDeletePage}
                       onShare={handleSharePage}

@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   DndContext,
@@ -34,15 +33,12 @@ import {
 } from '@dnd-kit/sortable';
 import { AppFooter } from "@/components/layout/app-footer";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
-import { Skeleton } from "@/components/ui/skeleton";
 
 
-const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken"; 
+const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
 
 
 function SamplePageContent() {
-  const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
 
   const [runJoyride, setRunJoyride] = useState(false);
@@ -54,11 +50,11 @@ function SamplePageContent() {
     setPageTitle,
     setLinkGroups,
     setTheme,
-    createNewPageFromAppData, 
-    createNewBlankPageAndRedirect, 
-    currentHash, 
+    createNewPageFromAppData,
+    createNewBlankPageAndRedirect,
+    currentPageId,
     setCustomPrimaryColor,
-  } = useAppData(); 
+  } = useAppData(undefined, null); // No specific pageId for sample, it's a template
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -73,16 +69,16 @@ function SamplePageContent() {
   }, [appData?.pageTitle]);
 
   useEffect(() => {
-    if (!isLoading && appData && pathname === '/sample' && typeof window !== 'undefined') {
+    if (!isLoading && appData && typeof window !== 'undefined') {
       const tourTaken = localStorage.getItem(JOYRIDE_SAMPLE_TAKEN_KEY);
       if (!tourTaken) {
         setTimeout(() => {
           setRunJoyride(true);
-          setJoyrideKey(Date.now()); 
+          setJoyrideKey(Date.now());
         }, 500);
       }
     }
-  }, [isLoading, appData, pathname]);
+  }, [isLoading, appData]);
 
   const samplePageJoyrideSteps: Step[] = [
     {
@@ -142,25 +138,25 @@ function SamplePageContent() {
       spotlightClicks: true,
     },
     {
-      target: '[data-joyride="link-group-card"]', 
+      target: '[data-joyride="link-group-card"]',
       content: 'Your link groups appear as cards. If you have multiple, you can drag them to reorder.',
       placement: 'top',
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="link-group-edit-button"]', 
+      target: '[data-joyride="link-group-edit-button"]',
       content: 'Use the edit button to modify a group\'s details or links.',
       placement: 'top',
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="link-group-delete-button"]', 
+      target: '[data-joyride="link-group-delete-button"]',
       content: 'And the delete button to remove a group.',
       placement: 'top',
       disableBeacon: true,
     },
     {
-      target: '[data-joyride="save-sample-page-button"]', 
+      target: '[data-joyride="save-sample-page-button"]',
       content: 'Great! Now you know the basics. Save your customized sample page to your home page to keep all your changes and get a unique shareable link!',
       placement: 'top',
       disableBeacon: true,
@@ -173,7 +169,7 @@ function SamplePageContent() {
 
     if (finishedStatuses.includes(status)) {
       setRunJoyride(false);
-      if (status === STATUS.FINISHED && pathname === '/sample') {
+      if (status === STATUS.FINISHED) {
         localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true');
       }
     }
@@ -181,15 +177,15 @@ function SamplePageContent() {
     if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
       setRunJoyride(false);
     }
-    
+
     if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
-      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) { 
+      if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) {
         if (!isFormOpen) {
            setIsFormOpen(true);
         }
       }
     }
-  }, [pathname, isFormOpen]);
+  }, [isFormOpen]);
 
   const startSampleTour = () => {
     setRunJoyride(true);
@@ -202,7 +198,7 @@ function SamplePageContent() {
 
   const handlePageTitleBlur = () => {
     if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle); 
+      setPageTitle(localPageTitle);
     }
   };
 
@@ -214,10 +210,36 @@ function SamplePageContent() {
       (event.target as HTMLInputElement).blur();
     }
   };
-  
+
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-    toast({ title: "Info", description: "Opening in new window is available for saved pages.", variant: "default" });
+    toast({ title: "Info", description: "Save this sample page first to enable opening groups in a new window.", variant: "default" });
   };
+
+
+  const handleShareSamplePage = async () => {
+     if (!appData) return;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { lastModified, ...shareableData } = appData; // Use current in-memory appData for sharing
+        const jsonString = JSON.stringify(shareableData);
+        const encodedJson = encodeURIComponent(jsonString);
+        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: "Share Link Copied!",
+          description: "A link to share this current sample page configuration has been copied.",
+          duration: 7000,
+        });
+      } catch (error) {
+        toast({
+          title: "Share Failed",
+          description: "Could not create or copy the share link for this sample.",
+          variant: "destructive",
+        });
+      }
+  };
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -235,7 +257,7 @@ function SamplePageContent() {
       const newIndex = appData.linkGroups.findIndex((g) => g.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         const reorderedGroups = arrayMove(appData.linkGroups, oldIndex, newIndex);
-        setLinkGroups(reorderedGroups); 
+        setLinkGroups(reorderedGroups);
       }
     }
   };
@@ -281,13 +303,13 @@ function SamplePageContent() {
 
   const handleSaveSamplePage = async () => {
     setIsSavingNewPage(true);
-    const newHash = createNewPageFromAppData(); 
-    if (newHash) {
+    const newPageId = createNewPageFromAppData(); // This function now handles redirection to /p/[newPageId]
+    if (newPageId) {
       toast({
         title: "Sample Page Saved!",
         description: "The sample page is now part of your home page and has a unique link.",
       });
-      localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true'); 
+      localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true');
     } else {
       toast({
         title: "Save Failed",
@@ -303,7 +325,7 @@ function SamplePageContent() {
       appData={appData}
       onThemeChange={setTheme}
     >
-      {typeof window !== 'undefined' && ( 
+      {typeof window !== 'undefined' && (
         <Joyride
           key={joyrideKey}
           steps={samplePageJoyrideSteps}
@@ -313,11 +335,11 @@ function SamplePageContent() {
           showProgress
           showSkipButton
           scrollToFirstStep
-          disableScrollParentFix 
-          spotlightClicks={true} 
+          disableScrollParentFix
+          spotlightClicks={true}
           styles={{
             options: {
-              zIndex: 10000, 
+              zIndex: 10000,
               arrowColor: 'hsl(var(--background))',
               backgroundColor: 'hsl(var(--background))',
               primaryColor: 'hsl(var(--primary))',
@@ -332,13 +354,18 @@ function SamplePageContent() {
       <TooltipProvider delayDuration={100}>
         <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
           <AppHeader
-            onCreateNewPage={createNewBlankPageAndRedirect} 
+            onCreateNewPage={createNewBlankPageAndRedirect} // "New Page" creates a blank one
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={false} 
-            onInitiateShare={() => toast({ title: "Info", description: "Save this sample page first to get a shareable link."})}
-            canShareCurrentPage={false} 
+            isReadOnlyPreview={false} // Sample page is interactive
+            onInitiateShare={handleShareSamplePage} // Share the current sample configuration
+            canShareCurrentPage={true} // Sample can always be shared
             showHomePageLink={true}
+            showSamplePageLink={false} // We are on the sample page
+            showShareButton={true}
+            // No delete functionality for the sample page template itself
+            onInitiateDelete={undefined}
+            canDeleteCurrentPage={false}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -406,7 +433,7 @@ function SamplePageContent() {
                     onDeleteGroup={handleDeleteGroup}
                     onOpenGroup={handleOpenGroup}
                     onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false} 
+                    isReadOnlyPreview={false}
                   />
                 </SortableContext>
               </DndContext>
@@ -426,6 +453,7 @@ function SamplePageContent() {
 }
 
 export default function SamplePage() {
+  // Suspense is important if SamplePageContent or its children use useSearchParams or other suspending hooks.
   return (
     <Suspense fallback={<PageContentSpinner />}>
       <SamplePageContent />

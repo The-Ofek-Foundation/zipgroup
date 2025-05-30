@@ -15,7 +15,7 @@ export function AppFooter({ onCreateNewPage }: AppFooterProps) {
         <span>Powered by </span>
         <Button
           variant="link"
-          onClick={onCreateNewPage}
+          onClick={onCreateNewPage} // This now creates /p/[newPageId]
           className="p-0 h-auto text-sm font-normal text-muted-foreground hover:text-primary"
         >
           ZipGroup.link

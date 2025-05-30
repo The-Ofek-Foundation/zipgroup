@@ -3,7 +3,7 @@
 
 import type React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // Removed usePathname, useSearchParams from here
 import { AppHeader } from "@/components/layout/app-header";
 import { AppFooter } from "@/components/layout/app-footer";
 import { LinkGroupList } from "@/components/link-group/link-group-list";
@@ -38,47 +38,13 @@ import { normalizeUrl } from "@/lib/utils";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
 interface ActualPageContentProps {
-  routeHash: string | null; // New prop to receive hash from PageRouter
+  pageId: string | null; // Changed from routeHash
+  initialSharedData?: Partial<AppData>; // For rendering shared data preview
 }
 
-export function ActualPageContent({ routeHash }: ActualPageContentProps) {
+export function ActualPageContent({ pageId, initialSharedData }: ActualPageContentProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
-
-  const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
-  const [sharedDataProcessed, setSharedDataProcessed] = useState(false);
-
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !sharedDataProcessed) {
-      const currentUrlSearchParams = new URLSearchParams(window.location.search);
-      const sharedDataParam = currentUrlSearchParams.get('sharedData');
-
-      if (sharedDataParam && !window.location.hash) { 
-        try {
-          const decodedJson = decodeURIComponent(sharedDataParam);
-          const parsedData = JSON.parse(decodedJson) as AppData;
-          setInitialSharedData(parsedData); // This will be passed to useAppData
-          toast({
-            title: "Shared Page Loaded",
-            description: "You're viewing a shared page. Click 'Save This Page' to add it to your home.",
-            duration: 7000,
-          });
-          // DO NOT clean the URL here; let sharedData param persist until save or navigation.
-        } catch (error) {
-          console.error("Failed to parse sharedData:", error);
-          toast({
-            title: "Error Loading Shared Page",
-            description: "The shared link seems to be invalid or corrupted.",
-            variant: "destructive",
-          });
-        }
-      }
-      setSharedDataProcessed(true); 
-    }
-  }, [searchParams, router, pathname, toast, sharedDataProcessed]);
 
   const {
     isLoading,
@@ -87,11 +53,11 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    currentHash, // This is the hash managed by useAppData, reflecting its internal state
+    currentPageId, // This is the ID managed by useAppData
     setCustomPrimaryColor,
     createNewBlankPageAndRedirect,
     deleteCurrentPageAndRedirect,
-  } = useAppData(initialSharedData, routeHash); 
+  } = useAppData(initialSharedData, pageId);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
@@ -99,13 +65,9 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-
   // This is a preview of a shared link, not yet saved by the current user
-  const isSharedPagePreview = !currentHash && !!initialSharedData; 
-  // This is a brand new page template, before first save (currently /sample takes this role)
-  const isPristineUnsavedPage = !currentHash && !initialSharedData && pathname !== '/sample';
-  
-  const isReadOnlyPreview = isSharedPagePreview; // Only shared previews are read-only for editing content
+  const isSharedPagePreview = !currentPageId && !!initialSharedData;
+  const isReadOnlyPreview = isSharedPagePreview;
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -134,7 +96,7 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
   };
 
   const handleShareCurrentPage = async () => {
-    if (!currentHash || !appData) {
+    if (!currentPageId || !appData) {
       toast({
         title: "Cannot Share",
         description: "Please save the page first to enable sharing.",
@@ -147,7 +109,8 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
       const { lastModified, ...shareableData } = appData;
       const jsonString = JSON.stringify(shareableData);
       const encodedJson = encodeURIComponent(jsonString);
-      const shareUrl = `${window.location.origin}${pathname}?sharedData=${encodedJson}`; // No hash in share URL
+      // Share link points to root with sharedData param
+      const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
 
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -166,11 +129,11 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
   };
 
   const handleCopyPageUrl = async () => {
-    if (!currentHash) {
+    if (!currentPageId) {
       toast({ title: "Cannot Copy URL", description: "Page has no unique URL yet. Save it first.", variant: "default" });
       return;
     }
-    const urlToCopy = `${window.location.origin}/#${currentHash}`;
+    const urlToCopy = `${window.location.origin}/p/${currentPageId}`;
     try {
       await navigator.clipboard.writeText(urlToCopy);
       toast({ title: "Page URL Copied!", description: "The URL has been copied to your clipboard." });
@@ -181,7 +144,7 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
   };
 
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-     if (!currentHash) {
+     if (!currentPageId) {
       toast({ title: "Error", description: "Current page details not available to create the link.", variant: "destructive" });
       return;
     }
@@ -189,8 +152,8 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
       toast({ title: "No URLs", description: "This group has no URLs to open.", variant: "default" });
       return;
     }
-
-    const url = `${window.location.origin}${pathname}?openGroupInNewWindow=${groupToOpen.id}#${currentHash}`;
+    // URL structure for opening group in new window points to the page's path with query params
+    const url = `${window.location.origin}/p/${currentPageId}?openGroupInNewWindow=${groupToOpen.id}`;
 
     try {
       await navigator.clipboard.writeText(url);
@@ -220,62 +183,51 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
     }
   };
 
+  // Effect to handle opening links in a new window (when current page has openGroupInNewWindow query param)
   useEffect(() => {
-    const currentUrlSearchParams = new URLSearchParams(window.location.search);
-    const groupIdToOpen = currentUrlSearchParams.get('openGroupInNewWindow');
-    // Use routeHash passed from PageRouter as the definitive hash for this page instance
-    const urlToClearParamsFrom = routeHash ? `${pathname}#${routeHash}` : pathname;
+    if (typeof window !== 'undefined') {
+      const currentUrlSearchParams = new URLSearchParams(window.location.search);
+      const groupIdToOpen = currentUrlSearchParams.get('openGroupInNewWindow');
+      
+      if (groupIdToOpen && appData && !isLoading && currentPageId) {
+        const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
+        const urlToClearParamsFrom = `/p/${currentPageId}`;
+        router.replace(urlToClearParamsFrom, { scroll: false }); // Clear param first
 
-    if (groupIdToOpen && appData && !isLoading && routeHash) {
-      const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-      console.log("[OpenInNewWindowEffect] Processing Group ID:", groupIdToOpen, "Found group:", group);
+        if (group && group.urls.length > 0) {
+          toast({
+            title: `Opening "${group.name}"...`,
+            description: `Attempting to open ${group.urls.length} link(s). Your browser's popup blocker might prevent some links. This tab will become the first link.`,
+            duration: 10000,
+          });
 
-      router.replace(urlToClearParamsFrom, { scroll: false });
-      console.log("[OpenInNewWindowEffect] Cleared URL param, current URL:", window.location.href);
-
-      if (group && group.urls.length > 0) {
-        toast({
-          title: `Opening "${group.name}"...`,
-          description: `Attempting to open ${group.urls.length} link(s). Your browser's popup blocker might prevent some links. This tab will become the first link.`,
-          duration: 10000,
-        });
-
-        const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
-        console.log("[OpenInNewWindowEffect] First URL:", firstUrlFull, "Other URLs:", otherUrlsFull);
-
-        otherUrlsFull.forEach(url => {
-          try {
-            new URL(url); 
-            const newTab = window.open(url, '_blank');
-            if (!newTab) {
-              console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
-              toast({ title: "Popup Blocker Active?", description: `Could not open: ${url}. Please check settings.`, variant: "default", duration: 7000 });
-            } else {
-              console.log("[OpenInNewWindowEffect] Opened:", url);
+          const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
+          otherUrlsFull.forEach(url => {
+            try {
+              new URL(url);
+              const newTab = window.open(url, '_blank');
+              if (!newTab) console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
+            } catch (e) {
+              console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
+              toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive" });
             }
-          } catch (e) {
-            console.warn(`[OpenInNewWindowEffect] Invalid URL skipped: ${url}`, e);
-            toast({ title: "Invalid URL", description: `Skipped invalid URL: ${url}`, variant: "destructive" });
-          }
-        });
-
-        setTimeout(() => {
-          try {
-            new URL(firstUrlFull); 
-            console.log("[OpenInNewWindowEffect] Navigating current tab to:", firstUrlFull);
-            window.location.replace(firstUrlFull);
-          } catch (e) {
-            console.error(`[OpenInNewWindowEffect] Error navigating to first URL "${firstUrlFull}":`, e);
-            toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
-          }
-        }, 250); 
-      } else if (group && group.urls.length === 0) {
-        toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
-      } else if (!group) {
-        toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
+          });
+          setTimeout(() => {
+            try {
+              new URL(firstUrlFull);
+              window.location.replace(firstUrlFull);
+            } catch (e) {
+              toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
+            }
+          }, 250);
+        } else if (group && group.urls.length === 0) {
+          toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
+        } else if (!group) {
+          toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
+        }
       }
     }
- }, [searchParams, appData, isLoading, routeHash, pathname, router, toast]); // Use routeHash
+  }, [appData, isLoading, currentPageId, router, toast]);
 
 
   const sensors = useSensors(
@@ -299,8 +251,8 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
     }
   };
 
-  if (isLoading || !appData || !sharedDataProcessed) { 
-    return <PageContentSpinner />; 
+  if (isLoading || !appData) {
+    return <PageContentSpinner />;
   }
 
   const handleAddGroup = () => {
@@ -340,8 +292,8 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
 
   const handleSaveCurrentDataAsNewPage = async () => {
     setIsSavingNewPage(true);
-    const newHashResult = createNewPageFromAppData(); // This function now handles redirection
-    if (newHashResult) {
+    const newPageIdResult = createNewPageFromAppData(); 
+    if (newPageIdResult) {
       toast({
         title: isSharedPagePreview ? "Shared Page Saved!" : "Page Saved!",
         description: isSharedPagePreview
@@ -360,7 +312,7 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
 
   const handleDeletePageConfirmed = () => {
     if (deleteCurrentPageAndRedirect) {
-      deleteCurrentPageAndRedirect();
+      deleteCurrentPageAndRedirect(); // This will redirect to "/"
     }
     setIsDeleteDialogOpen(false);
   };
@@ -378,12 +330,12 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
             onSetCustomPrimaryColor={setCustomPrimaryColor}
             isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentHash && !isReadOnlyPreview} // Use currentHash from useAppData
+            canShareCurrentPage={!!currentPageId && !isReadOnlyPreview}
             showHomePageLink={true}
-            showSamplePageLink={false} 
+            showSamplePageLink={false}
             showShareButton={true}
             onInitiateDelete={() => setIsDeleteDialogOpen(true)}
-            canDeleteCurrentPage={!!currentHash && !isReadOnlyPreview} // Use currentHash from useAppData
+            canDeleteCurrentPage={!!currentPageId && !isReadOnlyPreview}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -399,7 +351,7 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
                 disabled={isReadOnlyPreview}
                 data-joyride="page-title-input"
               />
-              {currentHash && appData.lastModified && ( // Use currentHash from useAppData
+              {currentPageId && appData.lastModified && (
                 <div className="text-xs text-muted-foreground mt-2 flex items-center justify-center">
                   <Clock className="mr-1.5 h-3 w-3" />
                   Last modified: {format(new Date(appData.lastModified), "MMM d, yyyy, h:mm a")}
@@ -410,7 +362,7 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
               )}
             </div>
 
-            {isSharedPagePreview && ( 
+            {isSharedPagePreview && (
               <div className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow" data-joyride="interactive-sample-info">
                 <Info className="mx-auto h-10 w-10 text-primary mb-4" />
                  <h2 className="text-xl font-semibold text-foreground mb-2">
@@ -439,11 +391,11 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
               isReadOnlyPreview ? (
                 <LinkGroupList
                   groups={appData.linkGroups}
-                  onAddGroup={handleAddGroup} 
-                  onEditGroup={handleEditGroup} 
-                  onDeleteGroup={handleDeleteGroup} 
+                  onAddGroup={handleAddGroup}
+                  onEditGroup={handleEditGroup}
+                  onDeleteGroup={handleDeleteGroup}
                   onOpenGroup={handleOpenGroup}
-                  onOpenInNewWindow={handleOpenGroupInNewWindow} 
+                  onOpenInNewWindow={handleOpenGroupInNewWindow}
                   isReadOnlyPreview={true}
                 />
               ) : (
@@ -451,12 +403,12 @@ export function ActualPageContent({ routeHash }: ActualPageContentProps) {
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEndLinkGroups}
-                  disabled={isReadOnlyPreview} 
+                  disabled={isReadOnlyPreview}
                 >
                   <SortableContext
                     items={appData.linkGroups.map(g => g.id)}
                     strategy={rectSortingStrategy}
-                    disabled={isReadOnlyPreview} 
+                    disabled={isReadOnlyPreview}
                   >
                     <LinkGroupList
                       groups={appData.linkGroups}
