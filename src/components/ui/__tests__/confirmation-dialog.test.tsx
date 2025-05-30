@@ -1,11 +1,12 @@
+
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
 import { ConfirmationDialog } from '../confirmation-dialog';
-import { Button } from '../button'; // To test the buttons within the dialog
-import { Loader2 } from 'lucide-react'; // To check for loader icon
+// import { Button } from '../button'; // To test the buttons within the dialog
+// import { Loader2 } from 'lucide-react'; // To check for loader icon
 
 // Mock Lucide icons to avoid rendering complexities in tests
 jest.mock('lucide-react', () => {
@@ -46,7 +47,7 @@ describe('ConfirmationDialog Component', () => {
   });
 
   test('does not render content when open is false', () => {
-    const { container } = render(<ConfirmationDialog {...defaultProps} open={false} />);
+    render(<ConfirmationDialog {...defaultProps} open={false} />);
     // Radix Dialogs often mount to portal, so check for absence of key elements
     // or if the dialog root itself is not present in the direct container (might need more specific check)
     // For this setup, if open is false, DialogContent should not be in the document.
@@ -91,15 +92,10 @@ describe('ConfirmationDialog Component', () => {
     const user = userEvent.setup();
     render(<ConfirmationDialog {...defaultProps} />);
 
-    // Radix Dialog often renders overlay as a sibling or specific element.
-    // A common way to get it is to click outside the dialog content.
-    // Let's assume the dialog content has a role 'dialog'.
-    // We click on the body, which should be outside.
-    // Note: This specific test can be fragile depending on how Radix handles overlay clicks
-    // and might need adjustment if the DOM structure of the dialog changes.
-    // A more robust way could be to find the overlay element by a test-id if one were added.
-    // For now, we'll try clicking the body.
-    await user.click(document.body);
+    // Ensure the dialog is open and the overlay is present
+    expect(screen.getByText('Test Title')).toBeInTheDocument(); 
+    const overlay = screen.getByTestId('dialog-overlay');
+    await user.click(overlay);
 
     // Check if onOpenChange was called. Radix Dialogs usually handle this.
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
@@ -120,8 +116,17 @@ describe('ConfirmationDialog Component', () => {
     // This depends on your Button component's variant classes.
     expect(confirmButton).toHaveClass('bg-primary'); // Assuming default variant has bg-primary
 
-    render(<ConfirmationDialog {...defaultProps} confirmText="Delete Test" confirmVariant="destructive" />);
-    const destructiveButton = screen.getByRole('button', { name: /delete test/i });
+    // Re-render with destructive variant for a separate check if necessary or clear DOM
+    // For simplicity, assuming the test runner clears between `render` calls within the same test,
+    // or this is fine if classes are mutually exclusive.
+    // If not, split into two tests or ensure proper cleanup.
+    const { rerender } = render(<ConfirmationDialog {...defaultProps} confirmText="Delete Test" confirmVariant="destructive" />);
+    const destructiveButtonInitial = screen.getByRole('button', { name: /delete test/i }); // This might be an issue if not cleared
+    expect(destructiveButtonInitial).toHaveClass('bg-destructive');
+
+    // Better approach:
+    rerender(<ConfirmationDialog {...defaultProps} confirmText="Delete Test New" confirmVariant="destructive" />);
+    const destructiveButton = screen.getByRole('button', { name: /delete test new/i });
     expect(destructiveButton).toHaveClass('bg-destructive');
   });
 

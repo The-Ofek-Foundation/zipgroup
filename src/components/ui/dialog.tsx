@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,6 +26,7 @@ const DialogOverlay = React.forwardRef<
       className
     )}
     {...props}
+    data-testid="dialog-overlay" // Added data-testid
   />
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
