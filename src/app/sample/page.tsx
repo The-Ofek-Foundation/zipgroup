@@ -4,81 +4,29 @@
 import type React from "react";
 import { useState, useEffect, Suspense, useCallback } from "react";
 import Joyride, { type Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
-import { AppHeader } from "@/components/layout/app-header";
-import { LinkGroupList } from "@/components/link-group/link-group-list";
-import { LinkGroupFormDialog } from "@/components/link-group/link-group-form-dialog";
-import type { LinkGroup, AppData } from "@/lib/types";
-import { useAppData } from "@/hooks/use-app-data";
-import { ThemeProvider } from "@/components/theme/theme-provider";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ClipboardCopy, Save, Loader2, Info, Share2, Clock, HelpCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { format } from 'date-fns';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable';
-import { AppFooter } from "@/components/layout/app-footer";
+import { ActualPageContent } from "@/components/page-view/actual-page-content";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
+import { defaultSampleAppData } from "@/hooks/use-app-data";
 
 
 const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
 
-
-function SamplePageContent() {
-  const { toast } = useToast();
-
+function SamplePageProvider() {
   const [runJoyride, setRunJoyride] = useState(false);
   const [joyrideKey, setJoyrideKey] = useState(Date.now());
-
-  const {
-    isLoading,
-    appData,
-    setPageTitle,
-    setLinkGroups,
-    setTheme,
-    createNewPageFromAppData,
-    createNewBlankPageAndRedirect,
-    currentPageId,
-    setCustomPrimaryColor,
-  } = useAppData(undefined, null); // No specific pageId for sample, it's a template
-
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<LinkGroup | null>(null);
-  const [localPageTitle, setLocalPageTitle] = useState("");
-  const [isSavingNewPage, setIsSavingNewPage] = useState(false);
+  const [isFormOpenForJoyride, setIsFormOpenForJoyride] = useState(false);
 
   useEffect(() => {
-    if (appData?.pageTitle) {
-      document.title = appData.pageTitle;
-      setLocalPageTitle(appData.pageTitle);
-    }
-  }, [appData?.pageTitle]);
-
-  useEffect(() => {
-    if (!isLoading && appData && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       const tourTaken = localStorage.getItem(JOYRIDE_SAMPLE_TAKEN_KEY);
       if (!tourTaken) {
         setTimeout(() => {
           setRunJoyride(true);
-          setJoyrideKey(Date.now());
+          setJoyrideKey(Date.now() + 1);
         }, 500);
       }
     }
-  }, [isLoading, appData]);
+  }, []);
 
   const samplePageJoyrideSteps: Step[] = [
     {
@@ -177,154 +125,19 @@ function SamplePageContent() {
     if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
       setRunJoyride(false);
     }
-
+    
     if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
       if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) {
-        if (!isFormOpen) {
-           setIsFormOpen(true);
-        }
+        setIsFormOpenForJoyride(true); 
+      }
+      if (step.target === '[data-joyride="group-form-save-button"]' && index === 8) {
+         setIsFormOpenForJoyride(false);
       }
     }
-  }, [isFormOpen]);
-
-  const startSampleTour = () => {
-    setRunJoyride(true);
-    setJoyrideKey(Date.now());
-  };
-
-  const handlePageTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalPageTitle(event.target.value);
-  };
-
-  const handlePageTitleBlur = () => {
-    if (appData && localPageTitle !== appData.pageTitle) {
-      setPageTitle(localPageTitle);
-    }
-  };
-
-  const handlePageTitleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      if (appData && localPageTitle !== appData.pageTitle) {
-        setPageTitle(localPageTitle);
-      }
-      (event.target as HTMLInputElement).blur();
-    }
-  };
-
-  const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-    toast({ title: "Info", description: "Save this sample page first to enable opening groups in a new window.", variant: "default" });
-  };
-
-
-  const handleShareSamplePage = async () => {
-     if (!appData) return;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { lastModified, ...shareableData } = appData; // Use current in-memory appData for sharing
-        const jsonString = JSON.stringify(shareableData);
-        const encodedJson = encodeURIComponent(jsonString);
-        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
-
-        await navigator.clipboard.writeText(shareUrl);
-        toast({
-          title: "Share Link Copied!",
-          description: "A link to share this current sample page configuration has been copied.",
-          duration: 7000,
-        });
-      } catch (error) {
-        toast({
-          title: "Share Failed",
-          description: "Could not create or copy the share link for this sample.",
-          variant: "destructive",
-        });
-      }
-  };
-
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { delay: 150, tolerance: 5 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragEndLinkGroups = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (active && over && active.id !== over.id && appData) {
-      const oldIndex = appData.linkGroups.findIndex((g) => g.id === active.id);
-      const newIndex = appData.linkGroups.findIndex((g) => g.id === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reorderedGroups = arrayMove(appData.linkGroups, oldIndex, newIndex);
-        setLinkGroups(reorderedGroups);
-      }
-    }
-  };
-
-  if (isLoading || !appData) {
-     return <PageContentSpinner />;
-  }
-
-  const handleAddGroup = () => {
-    setEditingGroup(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEditGroup = (group: LinkGroup) => {
-    setEditingGroup(group);
-    setIsFormOpen(true);
-  };
-
-  const handleDeleteGroup = (groupToDelete: LinkGroup) => {
-    if (!appData) return;
-    const updatedGroups = appData.linkGroups.filter(g => g.id !== groupToDelete.id);
-    setLinkGroups(updatedGroups);
-    toast({ title: "Group Deleted", description: `"${groupToDelete.name}" has been removed.` });
-  };
-
-  const handleOpenGroup = (group: LinkGroup) => { /* For toast in LinkGroupCard */ };
-
-  const handleFormSubmit = (groupData: LinkGroup) => {
-    if (!appData) return;
-    const existingGroupIndex = appData.linkGroups.findIndex(g => g.id === groupData.id);
-    let updatedGroups;
-    if (existingGroupIndex > -1) {
-      updatedGroups = [...appData.linkGroups];
-      updatedGroups[existingGroupIndex] = groupData;
-      toast({ title: "Group Updated", description: `"${groupData.name}" has been saved.` });
-    } else {
-      updatedGroups = [...appData.linkGroups, groupData];
-      toast({ title: "Group Created", description: `"${groupData.name}" has been added.` });
-    }
-    setLinkGroups(updatedGroups);
-    setIsFormOpen(false);
-  };
-
-  const handleSaveSamplePage = async () => {
-    setIsSavingNewPage(true);
-    const newPageId = createNewPageFromAppData(); // This function now handles redirection to /p/[newPageId]
-    if (newPageId) {
-      toast({
-        title: "Sample Page Saved!",
-        description: "The sample page is now part of your home page and has a unique link.",
-      });
-      localStorage.setItem(JOYRIDE_SAMPLE_TAKEN_KEY, 'true');
-    } else {
-      toast({
-        title: "Save Failed",
-        description: "Could not save the page. Please try again.",
-        variant: "destructive",
-      });
-    }
-    setIsSavingNewPage(false);
-  };
-
+  }, []);
+  
   return (
-    <ThemeProvider
-      appData={appData}
-      onThemeChange={setTheme}
-    >
+    <>
       {typeof window !== 'undefined' && (
         <Joyride
           key={joyrideKey}
@@ -351,112 +164,25 @@ function SamplePageContent() {
           }}
         />
       )}
-      <TooltipProvider delayDuration={100}>
-        <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
-          <AppHeader
-            onCreateNewPage={createNewBlankPageAndRedirect} // "New Page" creates a blank one
-            customPrimaryColor={appData.customPrimaryColor}
-            onSetCustomPrimaryColor={setCustomPrimaryColor}
-            isReadOnlyPreview={false} // Sample page is interactive
-            onInitiateShare={handleShareSamplePage} // Share the current sample configuration
-            canShareCurrentPage={true} // Sample can always be shared
-            showHomePageLink={true}
-            showSamplePageLink={false} // We are on the sample page
-            showShareButton={true}
-            // No delete functionality for the sample page template itself
-            onInitiateDelete={undefined}
-            canDeleteCurrentPage={false}
-          />
-          <main className="flex-grow container mx-auto p-4 md:p-8">
-            <div className="mb-6 text-center">
-              <Input
-                type="text"
-                value={localPageTitle}
-                onChange={handlePageTitleChange}
-                onBlur={handlePageTitleBlur}
-                onKeyPress={handlePageTitleKeyPress}
-                className="w-full max-w-2xl mx-auto text-3xl md:text-4xl font-bold bg-transparent border-0 border-b-2 border-transparent focus:border-primary shadow-none focus-visible:ring-0 text-center py-2 h-auto"
-                placeholder="Enter Page Title"
-                aria-label="Page Title"
-                data-joyride="page-title-input"
-              />
-            </div>
-
-            <div
-              className="text-center py-6 px-4 border-b border-border mb-8 rounded-lg bg-card shadow"
-              data-joyride="interactive-sample-info"
-            >
-              <Info className="mx-auto h-10 w-10 text-primary mb-4" />
-              <h2 className="text-xl font-semibold text-foreground mb-2">
-                Welcome to ZipGroup!
-              </h2>
-              <p className="text-md text-muted-foreground mb-6 max-w-xl mx-auto">
-                You're viewing a fully interactive starting page. Customize the title, theme, and link groups below. When you're ready, save it to your home page to make it your own!
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Button
-                  onClick={handleSaveSamplePage}
-                  size="lg"
-                  disabled={isSavingNewPage}
-                  data-joyride="save-sample-page-button"
-                >
-                  {isSavingNewPage ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-5 w-5" />
-                  )}
-                  Save This Sample Page to My Home Page
-                </Button>
-                <Button variant="outline" size="lg" onClick={startSampleTour}>
-                  <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground mt-4">
-                After saving, you'll get a unique URL for this page.
-              </p>
-            </div>
-
-            {appData && (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEndLinkGroups}
-              >
-                <SortableContext
-                  items={appData.linkGroups.map(g => g.id)}
-                  strategy={rectSortingStrategy}
-                >
-                  <LinkGroupList
-                    groups={appData.linkGroups}
-                    onAddGroup={handleAddGroup}
-                    onEditGroup={handleEditGroup}
-                    onDeleteGroup={handleDeleteGroup}
-                    onOpenGroup={handleOpenGroup}
-                    onOpenInNewWindow={handleOpenGroupInNewWindow}
-                    isReadOnlyPreview={false}
-                  />
-                </SortableContext>
-              </DndContext>
-            )}
-          </main>
-          <LinkGroupFormDialog
-            isOpen={isFormOpen}
-            onClose={() => setIsFormOpen(false)}
-            onSubmit={handleFormSubmit}
-            initialData={editingGroup}
-          />
-          <AppFooter onCreateNewPage={createNewBlankPageAndRedirect} />
-        </div>
-      </TooltipProvider>
-    </ThemeProvider>
+      {/* Pass isFormOpenForJoyride to ActualPageContent if it needs to control the form dialog for the tour */}
+      <ActualPageContent 
+        key="sample" 
+        pageId={null} 
+        initialSharedData={defaultSampleAppData}
+        // Pass a prop to ActualPageContent if Joyride needs to open its dialog
+        // e.g., forceOpenFormDialog={isFormOpenForJoyride && joyrideKey > 0}
+        // ActualPageContent would then need to handle this prop.
+        // For now, the tour relies on data-joyride attributes and spotlightClicks.
+      />
+    </>
   );
 }
 
+
 export default function SamplePage() {
-  // Suspense is important if SamplePageContent or its children use useSearchParams or other suspending hooks.
   return (
     <Suspense fallback={<PageContentSpinner />}>
-      <SamplePageContent />
+      <SamplePageProvider />
     </Suspense>
   );
 }

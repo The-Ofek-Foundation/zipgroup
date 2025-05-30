@@ -10,8 +10,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { HomeIcon as PageHomeIcon, PlusCircle, BookOpenCheck, Layers, SunMoon, Palette, Clock, Share2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useDashboardTheme } from "@/hooks/use-dashboard-theme"; // For dashboard's own theme
-import { useAppData } from "@/hooks/use-app-data"; // For createNewBlankPageAndRedirect
+import { useDashboardTheme } from "@/hooks/use-dashboard-theme";
+import { useAppData } from "@/hooks/use-app-data";
 import { hexToHslValues } from "@/lib/color-utils";
 import { format } from 'date-fns';
 import {
@@ -39,10 +39,10 @@ import { EmptyStateMessage } from "@/components/ui/empty-state-message";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
 
-const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Used to find pages
+const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
 const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
-const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
+// const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken"; // Not used on dashboard
 
 
 interface StoredPage {
@@ -102,7 +102,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
       >
         <CardHeader className="pb-4">
           <Link
-            href={`/p/${page.id}`}
+            href={`/p/${page.id}`} // Navigate to /p/[pageId]
             className="block group"
             onClick={stopPropagationForButtons}
             onPointerDown={stopPropagationForButtons}
@@ -169,6 +169,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                   size="sm"
                   aria-label={`Delete page ${page.title}`}
                   onClick={() => setIsDeleteDialogOpen(true)}
+                  // onPointerDown is NOT stopped here due to dnd-kit activation constraints
                 >
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                 </Button>
@@ -200,7 +201,7 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  const { createNewBlankPageAndRedirect } = useAppData(null, null);
+  const { createNewBlankPageAndRedirect } = useAppData(undefined, null); // For "New Page" actions
 
 
   const {
@@ -228,7 +229,7 @@ export function DashboardView() {
         "linkwarp_dashboard_theme_mode", 
         "linkwarp_dashboard_custom_primary_color",
         JOYRIDE_SAMPLE_TAKEN_KEY,
-        JOYRIDE_PRISTINE_TAKEN_KEY,
+        // JOYRIDE_PRISTINE_TAKEN_KEY, // Not used here
       ];
 
       for (let i = 0; i < localStorage.length; i++) {
@@ -249,6 +250,8 @@ export function DashboardView() {
                 continue;
               }
               
+              // This check for auto-deletion of empty pages is also handled by useAppData.saveData now.
+              // Keeping it here for robustness during dashboard load is fine.
               const isEmptyDefaultPage = (!parsedData.linkGroups || parsedData.linkGroups.length === 0) && 
                                          parsedData.pageTitle === `New ZipGroup Page` && 
                                          !parsedData.customPrimaryColor;
@@ -335,7 +338,7 @@ export function DashboardView() {
   }, [dashboardThemeMode, dashboardCustomPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
-    createNewBlankPageAndRedirect();
+    createNewBlankPageAndRedirect(); // Navigates to /p/[newPageId]
   };
 
   const handleDeletePage = (idToDelete: string) => {
@@ -366,7 +369,7 @@ export function DashboardView() {
         const { lastModified, ...shareableData } = parsedData;
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
-        const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
+        const shareUrl = `${window.location.origin}/import?sharedData=${encodedJson}`; // Points to /import
         await navigator.clipboard.writeText(shareUrl);
         toast({
           title: "Share Link Copied!",
@@ -414,9 +417,9 @@ export function DashboardView() {
               onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
               themeMode={dashboardThemeMode}
               onSetThemeMode={setDashboardThemeMode}
-              showHomePageLink={false}
+              showHomePageLink={false} // Dashboard is home
               showSamplePageLink={true}
-              showShareButton={false}
+              showShareButton={false} // Share from page cards
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <PageContentSpinner text="Loading your ZipGroup home..." />
@@ -431,9 +434,9 @@ export function DashboardView() {
               onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
               themeMode={dashboardThemeMode}
               onSetThemeMode={setDashboardThemeMode}
-              showHomePageLink={false}
+              showHomePageLink={false} // Dashboard is home
               showSamplePageLink={true}
-              showShareButton={false}
+              showShareButton={false} // Share from page cards
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             {pages.length === 0 ? (
@@ -479,6 +482,3 @@ export function DashboardView() {
     </TooltipProvider>
   );
 }
-
-
-    

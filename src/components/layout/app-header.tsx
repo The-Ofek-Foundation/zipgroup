@@ -9,18 +9,17 @@ import { Zap, HomeIcon as PageHomeIcon, Share2, PlusCircle, BookOpenCheck, Trash
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePathname } from 'next/navigation';
-import { useAppData } from "@/hooks/use-app-data"; // For "New Page" action
-
+// No direct useAppData here, actions are passed as props
 
 interface AppHeaderProps {
-  // For direct control of theme/color, typically from Dashboard's useDashboardTheme
+  // For direct control of theme/color, typically from Dashboard's useDashboardTheme or page's useAppData
   customPrimaryColor?: string | undefined;
   onSetCustomPrimaryColor?: (color?: string) => void;
   themeMode?: 'light' | 'dark';
   onSetThemeMode?: (theme: 'light' | 'dark') => void;
 
   // For individual page actions / context
-  onCreateNewPage: () => void; // Now always required, can be from useAppData
+  onCreateNewPage: () => void; // Always required, comes from useAppData
   onInitiateShare?: () => void;
   canShareCurrentPage?: boolean;
   isReadOnlyPreview?: boolean;
@@ -36,11 +35,11 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({
-  customPrimaryColor, // From page's appData or dashboard's theme hook
-  onSetCustomPrimaryColor, // From page's appData or dashboard's theme hook
-  themeMode, // From page's appData (via ThemeProvider context) or dashboard's theme hook
-  onSetThemeMode, // From page's appData or dashboard's theme hook
-  onCreateNewPage, // Typically from useAppData
+  customPrimaryColor,
+  onSetCustomPrimaryColor,
+  themeMode,
+  onSetThemeMode,
+  onCreateNewPage,
   onInitiateShare,
   canShareCurrentPage = false,
   isReadOnlyPreview = false,
@@ -68,7 +67,7 @@ export function AppHeader({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/">
+                  <Link href="/"> {/* Home link always points to root */}
                     <span className="flex items-center gap-1.5">
                       <PageHomeIcon className="h-4 w-4"/>
                       <span className="hidden md:inline">Home</span>
@@ -88,7 +87,7 @@ export function AppHeader({
                 variant="outline"
                 onClick={onCreateNewPage} // This will now always create /p/[newPageId]
                 size="sm"
-                disabled={isReadOnlyPreview && pathname === '/'} // Disable for shared page preview at root
+                disabled={isReadOnlyPreview && pathname === '/import'} // Disable for shared page preview at /import
                 aria-label="New Page"
               >
                 <PlusCircle className="h-4 w-4 md:mr-2" />

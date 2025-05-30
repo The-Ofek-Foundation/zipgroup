@@ -1,15 +1,15 @@
 
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from 'next/navigation';
+import React, { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AppFooter } from "@/components/layout/app-footer"; // For skeleton
+import { AppFooter } from "@/components/layout/app-footer";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
-import { ActualPageContent } from "@/components/page-view/actual-page-content";
-import type { AppData } from "@/lib/types";
+import { useAppData } from "@/hooks/use-app-data"; // For createNewBlankPageAndRedirect in footer
 
+// Skeleton for the entire page when DashboardView might be loading
 function PageSkeletonForSuspense() {
+  const { createNewBlankPageAndRedirect } = useAppData(undefined, null); // For footer consistency
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -34,58 +34,18 @@ function PageSkeletonForSuspense() {
           <Skeleton className="h-5 w-2/3 mx-auto" />
         </div>
       </main>
-      {/* Using a dummy onCreateNewPage for the skeleton's footer */}
-      <AppFooter onCreateNewPage={() => console.log("Dummy create new page from skeleton footer")} />
+      <AppFooter onCreateNewPage={createNewBlankPageAndRedirect} />
     </div>
   );
 }
 
-// This component decides whether to render the Dashboard or ActualPageContent (for shared data)
-// Individual pages are now handled by /p/[pageId]/page.tsx
-function RootPageContent() {
-  const searchParams = useSearchParams();
-  const [initialSharedData, setInitialSharedData] = useState<Partial<AppData> | undefined>(undefined);
-  const [isLoadingSharedData, setIsLoadingSharedData] = useState(true);
-
-  useEffect(() => {
-    // This effect runs only once on the client to check for sharedData
-    const sharedDataParam = searchParams.get('sharedData');
-    if (sharedDataParam) {
-      try {
-        const decodedJson = decodeURIComponent(sharedDataParam);
-        const parsedData = JSON.parse(decodedJson) as AppData;
-        setInitialSharedData(parsedData);
-        // Do NOT clear sharedData from URL here, ActualPageContent handles it
-      } catch (error) {
-        console.error("Failed to parse sharedData on root page:", error);
-        // Potentially show an error toast or redirect
-      }
-    }
-    setIsLoadingSharedData(false);
-  }, [searchParams]); // Runs when searchParams object changes
-
-  if (isLoadingSharedData) {
-    return <PageSkeletonForSuspense />;
-  }
-
-  if (initialSharedData) {
-    // Render ActualPageContent in preview mode for the shared data
-    // The key ensures re-mount if sharedData content somehow changes, though unlikely for this param.
-    return <ActualPageContent key={`shared-${JSON.stringify(initialSharedData).substring(0,20)}`} pageId={null} initialSharedData={initialSharedData} />;
-  }
-
-  // Default to DashboardView if no sharedData
-  return <DashboardView />;
-}
-
-
+// The root page now directly renders the Dashboard.
+// Shared page logic is moved to /import
+// Individual page logic is in /p/[pageId]
 export default function Home() {
   return (
-    // Suspense around RootPageContent is good practice if it or its children might suspend
-    // e.g. due to data fetching or other async operations not handled by Next.js server components.
-    // Since RootPageContent now uses useSearchParams, it must be wrapped in Suspense.
     <Suspense fallback={<PageSkeletonForSuspense />}>
-      <RootPageContent />
+      <DashboardView />
     </Suspense>
   );
 }
