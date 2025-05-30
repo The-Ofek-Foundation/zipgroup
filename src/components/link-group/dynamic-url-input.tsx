@@ -22,7 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, XCircle, GripVertical } from "lucide-react";
+import { CirclePlus, CircleX, GripVertical } from "lucide-react"; // Changed PlusCircle to CirclePlus, XCircle to CircleX
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -98,9 +98,9 @@ function SortableUrlItem({ item, urlsCount, handleUrlChange, removeUrlField }: S
             size="icon"
             onClick={() => removeUrlField(item.id)}
             aria-label="Remove URL"
-            disabled={urlsCount <= 1} 
+            disabled={urlsCount <= 1}
           >
-            <XCircle className="h-5 w-5 text-destructive" />
+            <CircleX className="h-5 w-5 text-destructive" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -123,7 +123,7 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     if (JSON.stringify(safePropUrls) !== JSON.stringify(currentItemValues)) {
       setItems(safePropUrls.map(urlValue => ({ id: crypto.randomUUID(), value: urlValue })));
     }
-  }, [propUrls]); 
+  }, [propUrls]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -175,6 +175,20 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
     }
   }
 
+  // Ensure at least one empty input field is rendered if items is empty
+  // This typically runs after initial state setup or after all items are removed.
+  useEffect(() => {
+    if (items.length === 0) {
+      const initialItem = { id: crypto.randomUUID(), value: "" };
+      setItems([initialItem]);
+      // Do not call onChange here if the intention is just to initialize UI for an empty state.
+      // If the parent's `urls` prop was truly empty and should reflect one empty string,
+      // then `onChange([''])` would be appropriate, but this might conflict with RHF's initial state.
+      // For now, this ensures the UI has an input, parent state sync is via interactions.
+    }
+  }, [items]);
+
+
   return (
     <DndContext
       sensors={sensors}
@@ -201,7 +215,7 @@ export function DynamicUrlInput({ urls: propUrls, onChange }: DynamicUrlInputPro
         onClick={addUrlField}
         className="mt-3"
       >
-        <PlusCircle className="mr-2 h-4 w-4" /> Add URL
+        <CirclePlus className="mr-2 h-4 w-4" /> Add URL
       </Button>
     </DndContext>
   );
