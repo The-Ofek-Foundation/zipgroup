@@ -20,8 +20,7 @@ describe('generateRandomHash', () => {
     expect(hash1).not.toBe(hash2);
   });
 
-  it('should handle a length of 0 by returning an empty string (or a minimum length if preferred)', () => {
-    // Math.random().toString(36).substring(2, 2 + 0) results in empty string
+  it('should handle a length of 0 by returning an empty string', () => {
     expect(generateRandomHash(0).length).toBe(0);
   });
 });
