@@ -2,7 +2,7 @@
 "use client";
 
 import type { LinkGroup } from "@/lib/types";
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react"; // Removed useState as it's not directly used for local state here
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,19 +50,19 @@ export function LinkGroupFormDialog({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting }, // Added isSubmitting
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
-    defaultValues: {
+    defaultValues: { // Default values for create mode or if initialData is sparse
       name: "",
       icon: "Package", 
-      urls: [""],
+      urls: [""], // Start with one empty URL field
     },
   });
 
 
   useEffect(() => {
-    if (isOpen) { // Only reset when dialog opens
+    if (isOpen) {
       if (initialData) {
         reset({
           name: initialData.name,
@@ -70,23 +70,15 @@ export function LinkGroupFormDialog({
           urls: initialData.urls.length > 0 ? initialData.urls : [""],
         });
       } else {
-        reset({
+        reset({ // Reset to defaults for "create" mode
           name: "",
           icon: "Package", 
           urls: [""],
         });
       }
     }
-  // Make dependencies more granular to avoid unnecessary resets if initialData object reference changes but content is the same.
-  // JSON.stringify for urls array ensures deep comparison for that part.
-  }, [
-    isOpen,
-    initialData?.id, 
-    initialData?.name, 
-    initialData?.icon, 
-    JSON.stringify(initialData?.urls), // Compare actual URL content
-    reset
-  ]);
+  // Updated dependency array
+  }, [isOpen, initialData, reset]);
 
   const handleFormSubmit = (data: LinkGroupFormData) => {
     onSubmit({
