@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DynamicUrlInput } from "./dynamic-url-input";
-import { IconPickerInput } from "./icon-picker-input"; 
+import { IconPickerInput } from "./icon-picker-input";
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -43,20 +43,20 @@ export function LinkGroupFormDialog({
   onSubmit,
   initialData,
 }: LinkGroupFormDialogProps) {
-  const { toast } = useToast(); 
+  const { toast } = useToast();
 
   const {
     control,
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting }, 
+    formState: { errors, isSubmitting },
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
-    defaultValues: { 
+    defaultValues: {
       name: "",
-      icon: "Package", 
-      urls: [""], 
+      icon: "Package",
+      urls: [""],
     },
   });
 
@@ -70,23 +70,23 @@ export function LinkGroupFormDialog({
           urls: initialData.urls.length > 0 ? initialData.urls : [""],
         });
       } else {
-        reset({ 
+        reset({
           name: "",
-          icon: "Package", 
+          icon: "Package",
           urls: [""],
         });
       }
     }
   // This effect should primarily run when the dialog opens/closes (isOpen changes)
   // or when the fundamental item being edited changes (initialData.id).
-  }, [isOpen, initialData?.id, reset]); // Simplified and focused dependencies
+  }, [isOpen, initialData?.id, reset]);
 
   const handleFormSubmit = (data: LinkGroupFormData) => {
     onSubmit({
       id: initialData?.id || crypto.randomUUID(),
       ...data,
     });
-    onClose(); 
+    onClose();
   };
 
 
@@ -136,7 +136,7 @@ export function LinkGroupFormDialog({
                 {typeof errors.urls.message === 'string' ? errors.urls.message : (errors.urls as any)?.root?.message}
               </p>
             )}
-            {Array.isArray(errors.urls) && errors.urls.map((error, index) => 
+            {Array.isArray(errors.urls) && errors.urls.map((error, index) =>
               error && <p key={index} className="text-sm text-destructive mt-1">{`URL ${index + 1}: ${error.message}`}</p>
             )}
           </div>
