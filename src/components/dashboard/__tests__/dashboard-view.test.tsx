@@ -46,7 +46,6 @@ jest.mock('next/navigation', () => ({
   }),
   usePathname: jest.fn(() => '/'), // Dashboard is at root
   useSearchParams: jest.fn(() => new URLSearchParams()),
-  // Mock Link component behavior if it causes issues, but usually not needed for basic rendering
   Link: jest.fn(({ href, children }) => <a href={href}>{children}</a>),
 }));
 
@@ -69,9 +68,8 @@ const mockLocalStorage = {
   },
 };
 
-// Mock window.matchMedia
 const mockMatchMedia = jest.fn().mockImplementation(query => ({
-  matches: false, // Default to light theme for tests unless overridden
+  matches: false,
   media: query,
   onchange: null,
   addListener: jest.fn(),
@@ -81,16 +79,15 @@ const mockMatchMedia = jest.fn().mockImplementation(query => ({
   dispatchEvent: jest.fn(),
 }));
 
-// Mock navigator.clipboard
 const mockWriteText = jest.fn().mockResolvedValue(undefined);
 
-// --- Helper to setup window mocks ---
 const setupWindowMocks = () => {
-  Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true });
-  Object.defineProperty(window, 'matchMedia', { value: mockMatchMedia, writable: true });
+  Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true, configurable: true });
+  Object.defineProperty(window, 'matchMedia', { value: mockMatchMedia, writable: true, configurable: true });
   Object.defineProperty(navigator, 'clipboard', {
     value: { writeText: mockWriteText },
     writable: true,
+    configurable: true, // Allow userEvent to redefine it
   });
 };
 
@@ -121,11 +118,11 @@ const samplePage2Data: AppData = {
 describe('DashboardView Component', () => {
   beforeEach(() => {
     setupWindowMocks();
-    mockLocalStorage.clear(); // Clears the store object
-    // Clear individual mock function calls
-    mockLocalStorage.getItem.mockClear();
-    mockLocalStorage.setItem.mockClear();
-    mockLocalStorage.removeItem.mockClear();
+    store = {}; // Clear the actual store object directly for localStorage mock
+    mockLocalStorage.getItem.mockImplementation((key: string) => store[key] || null);
+    mockLocalStorage.setItem.mockImplementation((key: string, value: string) => { store[key] = value; });
+    mockLocalStorage.removeItem.mockImplementation((key: string) => { delete store[key]; });
+    
     mockMatchMedia.mockClear().mockImplementation(query => ({
       matches: false, media: query, onchange: null, addListener: jest.fn(), removeListener: jest.fn(),
       addEventListener: jest.fn(), removeEventListener: jest.fn(), dispatchEvent: jest.fn(),
@@ -136,14 +133,13 @@ describe('DashboardView Component', () => {
     mockToast.mockClear();
     mockRouterPush.mockClear();
     mockWriteText.mockClear();
-    mockDashboardThemeIsLoading = false; // Reset loading state for dashboard theme hook
+    mockDashboardThemeIsLoading = false;
   });
 
   test('shows loading spinner when dashboard theme is loading', async () => {
     mockDashboardThemeIsLoading = true;
     renderDashboard();
     expect(screen.getByText(/Loading your ZipGroup home.../i)).toBeInTheDocument();
-    // Ensure the actual content isn't rendered
     expect(screen.queryByText(/No ZipGroup Pages Yet/i)).not.toBeInTheDocument();
   });
 
@@ -172,7 +168,7 @@ describe('DashboardView Component', () => {
     expect(screen.getByText(/1 Link Group/i)).toBeInTheDocument();
     expect(screen.getByText('Page Two')).toBeInTheDocument();
     expect(screen.getByText(/0 Link Groups/i)).toBeInTheDocument();
-    expect(screen.getByText(/Custom Color:/i)).toBeInTheDocument(); // For Page Two
+    expect(screen.getByText(/Custom Color:/i)).toBeInTheDocument();
   });
   
   test('handles page deletion correctly', async () => {
@@ -185,16 +181,12 @@ describe('DashboardView Component', () => {
     const pageOneCard = await screen.findByText('Page One');
     expect(pageOneCard).toBeInTheDocument();
 
-    // Find delete button associated with "Page One"
-    // This assumes the delete button is identifiable. Let's refine based on card structure.
-    // Assuming Card component renders a structure where title and delete button are siblings or queryable from a common ancestor
-    const cardForPageOne = screen.getByText('Page One').closest('div[class*="card"]'); // A bit fragile selector
+    const cardForPageOne = screen.getByText('Page One').closest('div[class*="card"]');
     if (!cardForPageOne) throw new Error("Could not find card for Page One");
 
     const deleteButton = within(cardForPageOne).getByRole('button', { name: /delete page Page One/i });
     await user.click(deleteButton);
 
-    // Confirmation dialog should appear
     const confirmDialog = await screen.findByRole('dialog', { name: /are you absolutely sure/i });
     expect(confirmDialog).toBeInTheDocument();
     const confirmDeleteBtn = within(confirmDialog).getByRole('button', { name: /delete page/i });
@@ -228,7 +220,7 @@ describe('DashboardView Component', () => {
     });
     
     const expectedShareData = { ...samplePage1Data };
-    delete (expectedShareData as any).lastModified; // lastModified is removed for sharing
+    delete (expectedShareData as any).lastModified;
     const encodedJson = encodeURIComponent(JSON.stringify(expectedShareData));
     const expectedShareUrl = `${window.location.origin}/import?sharedData=${encodedJson}`;
     
@@ -237,21 +229,25 @@ describe('DashboardView Component', () => {
   });
 
   test('applies theme and custom color from useDashboardTheme', async () => {
-    // Mock useDashboardTheme to return specific values for this test
     const mockUseDashboardTheme = require('@/hooks/use-dashboard-theme').useDashboardTheme;
     mockUseDashboardTheme.mockReturnValue({
       themeMode: 'dark',
-      customPrimaryColor: '#123456',
+      customPrimaryColor: '#123456', // Example hex
       isLoading: false,
       setDashboardThemeMode: mockSetDashboardThemeMode,
       setDashboardCustomPrimaryColor: mockSetDashboardCustomPrimaryColor,
     });
 
     renderDashboard();
-    await screen.findByTestId("app-header"); // Wait for header to know dashboard view has rendered past loading.
+    await screen.findByTestId("app-header"); 
 
     expect(document.documentElement).toHaveClass('dark');
-    expect(document.documentElement.style.getPropertyValue('--primary')).toMatch(/123456/); // simplified check for HSL conversion
+    // #123456 -> hsl(210, 65.4%, 20.4%)
+    // Check for parts of the HSL string
+    const primaryStyle = document.documentElement.style.getPropertyValue('--primary');
+    expect(primaryStyle).toMatch(/210/); // Check for hue
+    expect(primaryStyle).toMatch(/65.4%/); // Check for saturation
+    expect(primaryStyle).toMatch(/20.4%/); // Check for lightness
   });
 
   test('correctly auto-deletes empty default pages on load', async () => {
@@ -260,10 +256,9 @@ describe('DashboardView Component', () => {
       linkGroups: [],
       theme: 'light',
       customPrimaryColor: undefined,
-      // lastModified might or might not be present, test should handle
     };
     mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`, JSON.stringify(emptyDefaultPage));
-    mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`, JSON.stringify(samplePage1Data)); // A non-empty page
+    mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`, JSON.stringify(samplePage1Data));
     mockLocalStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(['emptyId', 'id1']));
 
     renderDashboard();
@@ -271,35 +266,26 @@ describe('DashboardView Component', () => {
     await waitFor(() => {
         expect(screen.queryByText("New ZipGroup Page")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("Page One")).toBeInTheDocument(); // The non-empty page should still be there
+    await waitFor(() => { // Added waitFor for "Page One"
+      expect(screen.getByText("Page One")).toBeInTheDocument();
+    });
     
-    // Check localStorage calls: removeItem for emptyId, setItem for updated order
     expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`);
-    // The order should be updated to only contain 'id1'
-    // The exact call to setItem for order might be tricky if it happens multiple times or with intermediate states
-    // A robust check is that the final state of the order key is correct
     await waitFor(() => {
-        const orderSetCall = mockLocalStorage.setItem.mock.calls.find(call => call[0] === DASHBOARD_ORDER_KEY);
+        const orderSetCall = mockLocalStorage.setItem.mock.calls.find(call => call[0] === DASHBOARD_ORDER_KEY && JSON.parse(call[1]).includes('id1'));
+        expect(orderSetCall).toBeDefined();
         if(orderSetCall) {
             expect(JSON.parse(orderSetCall[1])).toEqual(['id1']);
-        } else {
-            // If DASHBOARD_ORDER_KEY was never set after removal (e.g., no other pages to order)
-            // this might be acceptable if the order array was empty and thus not re-saved.
-            // For this test case, it should be re-saved.
-            fail('DASHBOARD_ORDER_KEY was not updated after removing empty page.');
         }
     });
   });
   
-  // Placeholder for drag and drop test - dnd-kit is complex to test fully in JSDOM
   test.todo('handles page reordering via drag and drop');
 
 });
 
-// Helper from @testing-library/dom to query within an element
-// (useful if not importing it globally via setup or if needing it explicitly)
 function within(element: HTMLElement) {
-  const { getByRole, queryByRole, findByRole, /* add other queries as needed */ } = require('@testing-library/dom');
+  const { getByRole, queryByRole, findByRole } = require('@testing-library/dom');
   return {
     getByRole: (role: string, options?: any) => getByRole(element, role, options),
     queryByRole: (role: string, options?: any) => queryByRole(element, role, options),
@@ -307,13 +293,25 @@ function within(element: HTMLElement) {
   };
 }
 
-// Mock AppHeader to avoid its internal complexities if they interfere with DashboardView tests
-// We are primarily testing DashboardView logic here.
+// Mock AppHeader to consume props and avoid React warnings
 jest.mock('@/components/layout/app-header', () => ({
-  AppHeader: jest.fn((props) => <div data-testid="app-header" {...props}>Mock AppHeader</div>),
+  AppHeader: jest.fn(({ 
+    onCreateNewPage, 
+    customPrimaryColor, 
+    onSetCustomPrimaryColor, 
+    themeMode, 
+    onSetThemeMode, 
+    showHomePageLink, 
+    showSamplePageLink, 
+    showShareButton, // Consume the prop
+    onInitiateShare,
+    canShareCurrentPage,
+    isReadOnlyPreview,
+    onInitiateDelete,
+    canDeleteCurrentPage,
+    joyrideProps
+  }) => <div data-testid="app-header" customprimarycolor={customPrimaryColor} thememode={themeMode}>Mock AppHeader</div>),
 }));
 jest.mock('@/components/layout/app-footer', () => ({
   AppFooter: jest.fn((props) => <div data-testid="app-footer" {...props}>Mock AppFooter</div>),
 }));
-
-

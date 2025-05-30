@@ -41,13 +41,16 @@ export function ConfirmationDialog({
     onConfirm();
   };
 
+  // Generate unique IDs for accessibility linking
+  const titleId = React.useId();
+  const descriptionId = React.useId();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Added role="dialog" and aria-labelledby/describedby for better accessibility in tests */}
-      <DialogContent aria-labelledby="confirmation-dialog-title" aria-describedby="confirmation-dialog-description">
+      <DialogContent aria-labelledby={titleId} aria-describedby={descriptionId}>
         <DialogHeader>
-          <DialogTitle id="confirmation-dialog-title">{title}</DialogTitle>
-          <DialogDescription id="confirmation-dialog-description">{description}</DialogDescription>
+          <DialogTitle id={titleId}>{title}</DialogTitle>
+          <DialogDescription id={descriptionId}>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isConfirming}>
@@ -62,4 +65,3 @@ export function ConfirmationDialog({
     </Dialog>
   );
 }
-
