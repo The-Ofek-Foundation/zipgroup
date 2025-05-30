@@ -39,13 +39,15 @@ import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
 interface ActualPageContentProps {
   pageId: string | null;
-  initialSharedData?: Partial<AppData>; // For rendering shared data preview from /import or /?sharedData=
+  initialSharedData?: Partial<AppData>;
+  onStartTour?: () => void; // For sample page tour
+  forceOpenFormDialog?: boolean; // For sample page tour to control form dialog
 }
 
-export function ActualPageContent({ pageId, initialSharedData }: ActualPageContentProps) {
+export function ActualPageContent({ pageId, initialSharedData, onStartTour, forceOpenFormDialog }: ActualPageContentProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams(); // To clear sharedData after saving an imported page
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const {
@@ -55,7 +57,7 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
     setLinkGroups,
     setTheme,
     createNewPageFromAppData,
-    currentPageId, // This is the ID managed by useAppData, derived from pageId prop
+    currentPageId,
     setCustomPrimaryColor,
     createNewBlankPageAndRedirect,
     deleteCurrentPageAndRedirect,
@@ -67,11 +69,9 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
   const [isSavingNewPage, setIsSavingNewPage] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // This is a preview of a shared link if pageId is null and initialSharedData is present.
-  // The sample page (/sample) will also have pageId=null but different initialSharedData.
-  const isImportPreview = !pageId && !!initialSharedData && pathname === '/import';
-  const isSamplePage = !pageId && pathname === '/sample'; // Sample page is fully interactive
-  const isReadOnlyPreview = isImportPreview; // Only imported pages are read-only until saved
+  const isImportPreview = !!initialSharedData && pathname === '/import';
+  const isSamplePage = pathname === '/sample';
+  const isReadOnlyPreview = isImportPreview;
 
   useEffect(() => {
     if (appData?.pageTitle) {
@@ -79,6 +79,14 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
       setLocalPageTitle(appData.pageTitle);
     }
   }, [appData?.pageTitle]);
+
+  // For Joyride to control the form dialog on the sample page
+  useEffect(() => {
+    if (isSamplePage && forceOpenFormDialog) {
+      setIsFormOpen(true);
+    }
+  }, [isSamplePage, forceOpenFormDialog]);
+
 
   const handlePageTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setLocalPageTitle(event.target.value);
@@ -100,7 +108,7 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
   };
 
   const handleShareCurrentPage = async () => {
-    if (!currentPageId || !appData || isReadOnlyPreview) { // currentPageId is the saved ID
+    if (!currentPageId || !appData || isReadOnlyPreview) {
       toast({
         title: "Cannot Share",
         description: "Please save the page first to enable sharing.",
@@ -132,7 +140,7 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
   };
 
   const handleCopyPageUrl = async () => {
-    if (!currentPageId) { // currentPageId is the saved ID
+    if (!currentPageId) {
       toast({ title: "Cannot Copy URL", description: "Page has no unique URL yet. Save it first.", variant: "default" });
       return;
     }
@@ -147,7 +155,7 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
   };
 
   const handleOpenGroupInNewWindow = async (groupToOpen: LinkGroup) => {
-     if (!currentPageId) { // currentPageId is the saved ID
+     if (!currentPageId) {
       toast({ title: "Error", description: "Save this page first to enable opening groups in a new window.", variant: "destructive" });
       return;
     }
@@ -192,9 +200,8 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
       
       if (groupIdToOpen && appData && !isLoading) {
         const group = appData.linkGroups.find(g => g.id === groupIdToOpen);
-        const urlToClearParamsFrom = `/p/${currentPageId}`; // Use the actual current page ID
+        const urlToClearParamsFrom = `/p/${currentPageId}`; 
         
-        // Important: Clear param first, only if it's present, to avoid router loops
         if (currentUrlSearchParams.has('openGroupInNewWindow')) {
             router.replace(urlToClearParamsFrom, { scroll: false }); 
         }
@@ -209,7 +216,8 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
           const [firstUrlFull, ...otherUrlsFull] = group.urls.map(normalizeUrl);
           otherUrlsFull.forEach(url => {
             try {
-              new URL(url); // Validate
+              new URL(url); 
+              console.log(`[OpenInNewWindowEffect] Attempting to open (new tab): ${url}`);
               const newTab = window.open(url, '_blank');
               if (!newTab) console.warn(`[OpenInNewWindowEffect] Popup blocker might have prevented opening: ${url}`);
             } catch (e) {
@@ -219,22 +227,23 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
           });
           setTimeout(() => {
             try {
-              new URL(firstUrlFull); // Validate
+              console.log(`[OpenInNewWindowEffect] Attempting to replace current tab with: ${firstUrlFull}`);
+              new URL(firstUrlFull); 
               window.location.replace(firstUrlFull);
             } catch (e) {
+              console.error(`[OpenInNewWindowEffect] Error replacing current tab with first URL: ${firstUrlFull}`, e);
               toast({ title: "Error with First Link", description: `The first link "${firstUrlFull}" is invalid or could not be opened. This tab will remain.`, variant: "destructive", duration: 7000 });
             }
-          }, 250); // Delay to allow other tabs to initiate opening
+          }, 250); 
         } else if (group && group.urls.length === 0) {
+          console.log(`[OpenInNewWindowEffect] Group "${group.name}" has no URLs.`);
           toast({ title: "No URLs in Group", description: `The group "${group.name}" has no URLs to open.`, variant: "destructive" });
         } else if (!group) {
+          console.log(`[OpenInNewWindowEffect] Group not found for ID: ${groupIdToOpen}`);
           toast({ title: "Group Not Found", description: `Could not find the group with ID "${groupIdToOpen}".`, variant: "destructive" });
         }
       }
     }
-  // currentPageId ensures this effect re-runs if we navigate to a different /p/[pageId] page
-  // appData and isLoading ensure data is ready
-  // pathname and router are stable dependencies
   }, [appData, isLoading, currentPageId, router, toast, pathname]);
 
 
@@ -302,9 +311,8 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
   };
 
   const handleSavePristineOrSharedPage = async () => {
-    if (!appData) return; // Should not happen if button is visible
+    if (!appData) return;
     setIsSavingNewPage(true);
-    // createNewPageFromAppData saves the current appData (from sample/import) to a new pageId and navigates
     const newPageIdResult = createNewPageFromAppData(); 
     if (newPageIdResult) {
       toast({
@@ -313,10 +321,8 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
           ? "The shared page is now part of your home page and has a unique link."
           : "The sample page is now part of your home page and has a unique link.",
       });
-      // For /import, clear the sharedData param after successful save and redirect
-      if (isImportPreview) {
-        router.replace(`/p/${newPageIdResult}`, { scroll: false });
-      }
+      // For /import, router.push in createNewPageFromAppData handles redirecting to /p/[newPageId]
+      // For /sample, it also redirects to /p/[newPageId]
     } else {
       toast({
         title: "Save Failed",
@@ -329,7 +335,7 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
 
   const handleDeletePageConfirmed = () => {
     if (deleteCurrentPageAndRedirect && !isReadOnlyPreview) {
-      deleteCurrentPageAndRedirect(); // This will redirect to "/"
+      deleteCurrentPageAndRedirect();
     }
     setIsDeleteDialogOpen(false);
   };
@@ -347,14 +353,20 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
             onCreateNewPage={createNewBlankPageAndRedirect}
             customPrimaryColor={appData.customPrimaryColor}
             onSetCustomPrimaryColor={setCustomPrimaryColor}
+            themeMode={appData.theme}
+            onSetThemeMode={setTheme}
             isReadOnlyPreview={isReadOnlyPreview}
             onInitiateShare={handleShareCurrentPage}
-            canShareCurrentPage={!!currentPageId && !isReadOnlyPreview} // Only share saved pages
+            canShareCurrentPage={!!currentPageId && !isReadOnlyPreview}
             showHomePageLink={true}
-            showSamplePageLink={pathname !== '/sample'} // Show if not on sample page
-            showShareButton={!isReadOnlyPreview && !!currentPageId} // Show only for saved, non-preview pages
+            showSamplePageLink={pathname !== '/sample'}
+            showShareButton={!isReadOnlyPreview && !!currentPageId}
             onInitiateDelete={isReadOnlyPreview ? undefined : () => setIsDeleteDialogOpen(true)}
             canDeleteCurrentPage={!!currentPageId && !isReadOnlyPreview}
+            joyrideProps={{
+                "data-joyride-custom-color-picker": "custom-color-picker",
+                "data-joyride-theme-switcher": "theme-switcher",
+             }}
           />
           <main className="flex-grow container mx-auto p-4 md:p-8">
             <div className="mb-6 text-center">
@@ -406,12 +418,8 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
                   )}
                   {isImportPreview ? "Save This Shared Page to My Home Page" : "Save This Page to My Home Page"}
                 </Button>
-                {isSamplePage && (
-                    <Button variant="outline" size="lg" onClick={() => {
-                        // This button should trigger joyride on sample page
-                        // For now, assuming joyride is auto-triggered or handled by a separate button within ActualPageContent on /sample
-                        console.log("Start sample tour from ActualPageContent placeholder");
-                    }} className="ml-2">
+                {isSamplePage && onStartTour && (
+                    <Button variant="outline" size="lg" onClick={onStartTour} className="ml-2">
                         <HelpCircle className="mr-2 h-5 w-5" /> Quick Tour
                     </Button>
                 )}
@@ -482,3 +490,4 @@ export function ActualPageContent({ pageId, initialSharedData }: ActualPageConte
     </ThemeProvider>
   );
 }
+

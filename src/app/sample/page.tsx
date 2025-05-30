@@ -7,6 +7,8 @@ import Joyride, { type Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'reac
 import { ActualPageContent } from "@/components/page-view/actual-page-content";
 import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 import { defaultSampleAppData } from "@/hooks/use-app-data";
+import { Button } from "@/components/ui/button";
+import { HelpCircle } from "lucide-react";
 
 
 const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
@@ -14,15 +16,22 @@ const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
 function SamplePageProvider() {
   const [runJoyride, setRunJoyride] = useState(false);
   const [joyrideKey, setJoyrideKey] = useState(Date.now());
-  const [isFormOpenForJoyride, setIsFormOpenForJoyride] = useState(false);
+  const [isFormOpenForJoyride, setIsFormOpenForJoyride] = useState(false); // To manually open form during tour
+
+  const handleStartTour = () => {
+    // Reset and start the tour
+    setJoyrideKey(Date.now()); // Changing key re-mounts Joyride
+    setRunJoyride(true);
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const tourTaken = localStorage.getItem(JOYRIDE_SAMPLE_TAKEN_KEY);
       if (!tourTaken) {
+        // Auto-start tour on first visit, with a delay
         setTimeout(() => {
           setRunJoyride(true);
-          setJoyrideKey(Date.now() + 1);
+          setJoyrideKey(Date.now() + 1); // Ensure key changes if auto-starting after manual
         }, 500);
       }
     }
@@ -58,7 +67,7 @@ function SamplePageProvider() {
       content: 'Click here to add a new link group. Your changes on this page are temporary until you save the entire page.',
       placement: 'top',
       disableBeacon: true,
-      spotlightClicks: true,
+      spotlightClicks: true, // Allows clicking the target element to advance
     },
     {
       target: '[data-joyride="group-form-name-input"]',
@@ -83,7 +92,7 @@ function SamplePageProvider() {
       content: 'Click to save your new link group!',
       placement: 'top',
       disableBeacon: true,
-      spotlightClicks: true,
+      spotlightClicks: true, // Allows clicking the target element to advance
     },
     {
       target: '[data-joyride="link-group-card"]',
@@ -123,17 +132,31 @@ function SamplePageProvider() {
     }
 
     if (type === EVENTS.TOOLTIP_CLOSE && action === ACTIONS.CLOSE) {
+      // User closed the tooltip manually
       setRunJoyride(false);
     }
     
+    // Handle dialog opening/closing for tour steps
+    // This logic needs to be robust and might require ActualPageContent to expose
+    // a way to control its internal `isFormOpen` state, or for Joyride to be able
+    // to click the "Add New Group" button itself if it's the target.
     if (type === EVENTS.SPOTLIGHT_CLICKED || type === EVENTS.STEP_AFTER) {
+      // If the step was to click "Add New Group", we now need the form to be open
+      // for the next steps to target elements inside the form.
       if (step.target === '[data-joyride="add-new-group-button"]' && index === 4) {
-        setIsFormOpenForJoyride(true); 
+        // This is tricky without direct control over ActualPageContent's form dialog state.
+        // For now, `spotlightClicks` on the button should open it.
+        // We can use a state to pass down to ActualPageContent if manual control is needed.
+         setIsFormOpenForJoyride(true); // Tell ActualPageContent to open its form
       }
+      // If the step was to click "Save Group" in the form
       if (step.target === '[data-joyride="group-form-save-button"]' && index === 8) {
+         // The form should close automatically on save.
          setIsFormOpenForJoyride(false);
       }
     }
+
+
   }, []);
   
   return (
@@ -148,11 +171,11 @@ function SamplePageProvider() {
           showProgress
           showSkipButton
           scrollToFirstStep
-          disableScrollParentFix
-          spotlightClicks={true}
+          disableScrollParentFix // Can be useful if scrolling issues occur
+          spotlightClicks={true} // Allow clicks on spotlighted elements to advance tour
           styles={{
             options: {
-              zIndex: 10000,
+              zIndex: 10000, // Ensure Joyride is above other elements
               arrowColor: 'hsl(var(--background))',
               backgroundColor: 'hsl(var(--background))',
               primaryColor: 'hsl(var(--primary))',
@@ -164,15 +187,14 @@ function SamplePageProvider() {
           }}
         />
       )}
-      {/* Pass isFormOpenForJoyride to ActualPageContent if it needs to control the form dialog for the tour */}
       <ActualPageContent 
         key="sample" 
         pageId={null} 
         initialSharedData={defaultSampleAppData}
-        // Pass a prop to ActualPageContent if Joyride needs to open its dialog
-        // e.g., forceOpenFormDialog={isFormOpenForJoyride && joyrideKey > 0}
-        // ActualPageContent would then need to handle this prop.
-        // For now, the tour relies on data-joyride attributes and spotlightClicks.
+        onStartTour={handleStartTour} // Pass the function to trigger the tour
+        // This prop tells ActualPageContent to open its form dialog for the tour.
+        // It's a bit of a workaround; a more robust solution might involve a shared context or state manager.
+        forceOpenFormDialog={isFormOpenForJoyride && joyrideKey > 0}
       />
     </>
   );
@@ -181,8 +203,10 @@ function SamplePageProvider() {
 
 export default function SamplePage() {
   return (
+    // Suspense needed if ActualPageContent or its children use it, or for router hooks
     <Suspense fallback={<PageContentSpinner />}>
       <SamplePageProvider />
     </Suspense>
   );
 }
+

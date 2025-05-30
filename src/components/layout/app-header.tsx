@@ -9,29 +9,29 @@ import { Zap, HomeIcon as PageHomeIcon, Share2, PlusCircle, BookOpenCheck, Trash
 import Link from "next/link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePathname } from 'next/navigation';
-// No direct useAppData here, actions are passed as props
 
 interface AppHeaderProps {
-  // For direct control of theme/color, typically from Dashboard's useDashboardTheme or page's useAppData
   customPrimaryColor?: string | undefined;
   onSetCustomPrimaryColor?: (color?: string) => void;
   themeMode?: 'light' | 'dark';
   onSetThemeMode?: (theme: 'light' | 'dark') => void;
 
-  // For individual page actions / context
-  onCreateNewPage: () => void; // Always required, comes from useAppData
+  onCreateNewPage: () => void;
   onInitiateShare?: () => void;
   canShareCurrentPage?: boolean;
   isReadOnlyPreview?: boolean;
   onInitiateDelete?: () => void;
   canDeleteCurrentPage?: boolean;
 
-  // Visibility toggles
   showHomePageLink?: boolean;
   showSamplePageLink?: boolean;
   showShareButton?: boolean;
 
-  joyrideProps?: Record<string, unknown>;
+  // Props for react-joyride targeting specific elements in the header
+  joyrideProps?: {
+    "data-joyride-custom-color-picker"?: string;
+    "data-joyride-theme-switcher"?: string;
+  };
 }
 
 export function AppHeader({
@@ -62,12 +62,12 @@ export function AppHeader({
             <span className="hidden sm:inline">ZipGroup</span>
           </h1>
         </div>
-        <div className="flex items-center gap-2" {...joyrideProps}>
+        <div className="flex items-center gap-2">
           {showHomePageLink && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/"> {/* Home link always points to root */}
+                  <Link href="/"> 
                     <span className="flex items-center gap-1.5">
                       <PageHomeIcon className="h-4 w-4"/>
                       <span className="hidden md:inline">Home</span>
@@ -85,9 +85,11 @@ export function AppHeader({
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                onClick={onCreateNewPage} // This will now always create /p/[newPageId]
+                onClick={onCreateNewPage}
                 size="sm"
-                disabled={isReadOnlyPreview && pathname === '/import'} // Disable for shared page preview at /import
+                // "New Page" button is generally always enabled.
+                // Specific page context (like being on /import or /sample)
+                // doesn't prevent creating a new, unrelated page.
                 aria-label="New Page"
               >
                 <PlusCircle className="h-4 w-4 md:mr-2" />
@@ -159,16 +161,17 @@ export function AppHeader({
             currentCustomColor={customPrimaryColor}
             onSetCustomColor={onSetCustomPrimaryColor}
             disabled={isReadOnlyPreview}
-            joyrideProps={{ "data-joyride": "custom-color-picker" }}
+            joyrideProps={{ "data-joyride": joyrideProps["data-joyride-custom-color-picker"] || "custom-color-picker" }}
           />
           <ThemeSwitcher
             theme={themeMode}
             setTheme={onSetThemeMode}
             disabled={isReadOnlyPreview}
-            joyrideProps={{ "data-joyride": "theme-switcher" }}
+            joyrideProps={{ "data-joyride": joyrideProps["data-joyride-theme-switcher"] || "theme-switcher" }}
           />
         </div>
       </div>
     </header>
   );
 }
+

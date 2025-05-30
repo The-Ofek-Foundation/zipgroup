@@ -3,13 +3,11 @@
 
 import type { AppData, LinkGroup } from "@/lib/types";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'; // useSearchParams for clearing on import save
+import { useRouter, usePathname } from 'next/navigation';
 import { generateRandomHash } from "@/lib/utils";
 
 const LOCAL_STORAGE_PREFIX = "linkwarp_";
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
-const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
 
 export const defaultSampleAppData: Omit<AppData, 'lastModified'> = {
   pageTitle: "Explore ZipGroup - Sample Page",
@@ -29,13 +27,10 @@ const defaultNewPageBase: Omit<AppData, 'pageTitle' | 'theme' | 'customPrimaryCo
 export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPath?: string | null) {
   const [appData, setAppData] = useState<AppData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // currentPageId is the source of truth for which page this instance of the hook is managing.
-  // It's derived from pageIdFromPath. If null, it's for sample/import or an unsaved new page.
   const [currentPageId, setCurrentPageId] = useState<string | null>(pageIdFromPath || null);
 
   const router = useRouter();
-  const pathname = usePathname(); // For /sample context
-  const searchParams = useSearchParams(); // For clearing sharedData query param on save
+  const pathname = usePathname();
   
   const currentPageIdRef = useRef<string | null>(currentPageId);
   useEffect(() => {
@@ -81,9 +76,6 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
       const storedData = localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${idToLoad}`);
       if (storedData) {
         const parsedData = JSON.parse(storedData) as AppData;
-        if (parsedData.pageTitle && parsedData.pageTitle.startsWith("LinkWarp Page")) {
-            parsedData.pageTitle = parsedData.pageTitle.replace("LinkWarp Page", "ZipGroup Page");
-        }
         return {
           ...parsedData,
           theme: parsedData.theme || systemTheme,
@@ -93,77 +85,84 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
       console.error("Failed to load/parse data from local storage for ID:", idToLoad, error);
     }
     // If no data found or error, return a default structure for a new page.
-    // This page IS NOT saved here. It's just the initial in-memory state for this ID.
     return {
       ...defaultNewPageBase,
-      pageTitle: "New ZipGroup Page",
+      pageTitle: "New ZipGroup Page", // Default title for truly new/unfound pages
       theme: systemTheme,
       customPrimaryColor: undefined,
       lastModified: undefined,
     };
   }, []);
 
-  // Effect for initializing appData based on props
   useEffect(() => {
     setIsLoading(true);
-    setCurrentPageId(pageIdFromPath || null); // Update currentPageId based on prop
     const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-
+    
     if (pageIdFromPath) {
+      setCurrentPageId(pageIdFromPath);
       const loaded = loadData(pageIdFromPath);
       setAppData(loaded);
-    } else if (initialExternalData) { // For /import or /sample (if initialExternalData is defaultSampleAppData)
+    } else if (initialExternalData) { // For /import page
+      setCurrentPageId(null);
       const pageData: AppData = {
-        ...defaultNewPageBase, // Base for linkGroups
-        pageTitle: initialExternalData.pageTitle || "ZipGroup Page",
+        ...defaultNewPageBase,
+        pageTitle: initialExternalData.pageTitle || "ZipGroup Shared Page",
         linkGroups: initialExternalData.linkGroups || [],
         theme: initialExternalData.theme || systemTheme,
         customPrimaryColor: initialExternalData.customPrimaryColor,
-        lastModified: undefined, // Not saved yet
+        lastModified: undefined,
       };
       setAppData(pageData);
+    } else if (pathname === '/sample') { // For /sample page
+      setCurrentPageId(null);
+      setAppData({
+        ...defaultSampleAppData,
+        theme: defaultSampleAppData.theme || systemTheme, // Ensure theme from sample or system
+        lastModified: undefined,
+      });
     } else {
-      // This case applies if useAppData is called without pageId and without initialExternalData
-      // e.g. by DashboardView for its createNewBlankPageAndRedirect action,
-      // or if a /p/[pageId] route is hit where pageId is somehow null/undefined from params.
-      // For ActualPageContent, this path shouldn't be hit if props are correctly passed.
+      // This case should ideally not be hit if routing is correct (e.g. dashboard at /)
+      // But as a fallback, initialize a minimal state.
+      setCurrentPageId(null);
       setAppData({
         ...defaultNewPageBase,
-        pageTitle: "New ZipGroup Page", // A truly blank, unsaved page state
+        pageTitle: "ZipGroup", // Default for an unspecified context, could be dashboard title
         theme: systemTheme,
         lastModified: undefined,
       });
     }
     setIsLoading(false);
-  }, [pageIdFromPath, initialExternalData, loadData, pathname]); // pathname for sample context implicitly handled via initialExternalData
+  }, [pageIdFromPath, initialExternalData, loadData, pathname]);
+
 
   const updateAppData = useCallback((updates: Partial<AppData>) => {
     setAppData(prevData => {
-      if (!prevData && !isLoading) { // Allow updates even if prevData is null initially during setup
-         console.warn("updateAppData called possibly too early or with null prevData");
+      if (!prevData) {
+         console.warn("updateAppData called with null prevData, this might indicate an issue.");
          // Create a base structure if prevData is null but we are not loading
          const systemTheme = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
          prevData = {
             ...defaultNewPageBase,
             pageTitle: "New ZipGroup Page",
             theme: systemTheme,
-            ...updates // Apply initial updates
+            ...updates
          };
-      } else if (!prevData) {
-         return null; // Still loading or error
       }
 
       const newLocalData: AppData = { ...prevData, ...updates };
 
       if (currentPageIdRef.current) {
         const dataToSave = { ...newLocalData, lastModified: Date.now() };
-        if (dataToSave.linkGroups.length === 0 &&
-            dataToSave.pageTitle === "New ZipGroup Page" &&
-            !dataToSave.customPrimaryColor) {
+        const isEmptyDefaultPage = (!dataToSave.linkGroups || dataToSave.linkGroups.length === 0) && 
+                                   dataToSave.pageTitle === "New ZipGroup Page" && 
+                                   !dataToSave.customPrimaryColor;
+
+        if (isEmptyDefaultPage) {
           deleteData(currentPageIdRef.current);
-          // Consider what appData should be after deletion. For now, null.
-          // This might need a redirect or UI change in the calling component.
-          return null; 
+          // If we delete, we should reflect this. Consider navigating or setting appData to null.
+          // For now, just log and don't save. The page component might need to handle this state.
+          console.log(`Page ${currentPageIdRef.current} became empty and was not saved/deleted.`);
+          return newLocalData; // Keep in-memory state, but don't persist if it's an empty default
         } else {
           saveData(currentPageIdRef.current, dataToSave);
           return dataToSave;
@@ -171,7 +170,7 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
       }
       return newLocalData; // Update in memory for unsaved pages (sample/import)
     });
-  }, [saveData, deleteData, isLoading]);
+  }, [saveData, deleteData]);
 
   const setPageTitle = useCallback((title: string) => {
     updateAppData({ pageTitle: title });
@@ -189,37 +188,31 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
     updateAppData({ customPrimaryColor: color });
   }, [updateAppData]);
 
-  // For saving the current in-memory appData (from sample, import, or an unsaved new page)
   const createNewPageFromAppData = useCallback(() => {
     if (!appData) {
         console.error("Cannot create new page from appData, appData is null");
         return null;
     }
-
     const newPageId = generateRandomHash();
     // Use the current appData (which includes user's modifications on sample/import)
+    // Do not rename the pageTitle here; save it as is.
     const dataToSave: AppData = { ...appData, lastModified: Date.now() };
-
-    // If the title is still the default sample title, or a generic new page title,
-    // assign a more specific new title. Otherwise, keep the user's custom title.
-    if (dataToSave.pageTitle === defaultSampleAppData.pageTitle || dataToSave.pageTitle === "ZipGroup Shared Page") {
-       dataToSave.pageTitle = "New ZipGroup Page"; // Keep it simple for saved sample/shared
-    }
-    // No need to rename if it's already "New ZipGroup Page"
 
     saveData(newPageId, dataToSave);
     
-    // Check if we were on /import and clear its query params after saving
     const currentUrl = new URL(window.location.href);
     if (currentUrl.pathname === '/import' && currentUrl.searchParams.has('sharedData')) {
-      router.push(`/p/${newPageId}`); // Navigate without old query params
+      router.push(`/p/${newPageId}`); // Navigate to new page, naturally clearing query params
     } else {
       router.push(`/p/${newPageId}`);
     }
     return newPageId;
   }, [appData, saveData, router]);
 
+
   const createNewBlankPageAndRedirect = useCallback(() => {
+    const DASHBOARD_THEME_MODE_KEY = 'linkwarp_dashboard_theme_mode';
+    const DASHBOARD_CUSTOM_COLOR_KEY = 'linkwarp_dashboard_custom_primary_color';
     let dashboardThemeMode: AppData['theme'] = 'light';
     let dashboardCustomColor: string | undefined = undefined;
 
@@ -240,14 +233,14 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
       lastModified: Date.now(),
     };
     saveData(newPageId, newPageData);
-    router.push(`/p/${newPageId}`); // Navigate to the new page
+    router.push(`/p/${newPageId}`);
     return newPageId;
   }, [router, saveData]);
 
   const deleteCurrentPageAndRedirect = useCallback(() => {
     if (currentPageIdRef.current) {
         deleteData(currentPageIdRef.current);
-        router.push('/'); // Navigate to home/dashboard
+        router.push('/');
     }
   }, [router, deleteData]);
 
@@ -258,10 +251,11 @@ export function useAppData(initialExternalData?: Partial<AppData>, pageIdFromPat
     setPageTitle,
     setLinkGroups,
     setTheme,
-    currentPageId, // This is derived from pageIdFromPath prop
+    currentPageId,
     createNewPageFromAppData,
     createNewBlankPageAndRedirect,
     setCustomPrimaryColor,
     deleteCurrentPageAndRedirect,
   };
 }
+
