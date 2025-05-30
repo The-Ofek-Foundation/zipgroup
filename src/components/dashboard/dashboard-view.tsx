@@ -41,13 +41,12 @@ import { PageContentSpinner } from "@/components/ui/page-content-spinner";
 
 const LOCAL_STORAGE_PREFIX_DASHBOARD = "linkwarp_"; // Used to find pages
 const DASHBOARD_ORDER_KEY = "linkwarp_dashboard_page_order";
-// Dashboard theme keys are managed by useDashboardTheme hook now
 const JOYRIDE_SAMPLE_TAKEN_KEY = "linkwarp_joyride_sample_taken";
 const JOYRIDE_PRISTINE_TAKEN_KEY = "linkwarp_joyride_pristine_taken";
 
 
 interface StoredPage {
-  id: string; // Was hash, now represents pageId for path-based routing
+  id: string;
   title: string;
   linkGroupCount: number;
   theme: 'light' | 'dark';
@@ -75,7 +74,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: transition || 'transform 250ms ease',
-    zIndex: isDragging ? 50 : 'auto', // Ensure dragging item is on top
+    zIndex: isDragging ? 50 : 'auto',
   };
 
   const stopPropagationForButtons = (e: React.MouseEvent | React.PointerEvent | React.TouchEvent) => {
@@ -92,7 +91,7 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
       ref={setNodeRef}
       style={style}
       className={cn(
-        "touch-manipulation", // For better touch interactions on mobile
+        "touch-manipulation",
         isDragging ? "opacity-75 shadow-2xl ring-2 ring-primary cursor-grabbing" : "cursor-grab"
       )}
       {...attributes}
@@ -103,9 +102,9 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
       >
         <CardHeader className="pb-4">
           <Link
-            href={`/p/${page.id}`} // Path-based routing
+            href={`/p/${page.id}`}
             className="block group"
-            onClick={stopPropagationForButtons} // Allow link click without drag
+            onClick={stopPropagationForButtons}
             onPointerDown={stopPropagationForButtons}
             tabIndex={0}
           >
@@ -170,7 +169,6 @@ function SortablePageCardItem({ page, onDelete, onShare }: SortablePageCardItemP
                   size="sm"
                   aria-label={`Delete page ${page.title}`}
                   onClick={() => setIsDeleteDialogOpen(true)}
-                  // onPointerDown is NOT stopped for DialogTrigger to allow dnd-kit activation constraints
                 >
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                 </Button>
@@ -202,8 +200,7 @@ export function DashboardView() {
   const [pages, setPages] = useState<StoredPage[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const { toast } = useToast();
-  // useAppData hook here is for createNewBlankPageAndRedirect action
-  const { createNewBlankPageAndRedirect } = useAppData();
+  const { createNewBlankPageAndRedirect } = useAppData(null, null);
 
 
   const {
@@ -228,9 +225,8 @@ export function DashboardView() {
 
       const excludedKeys = [
         DASHBOARD_ORDER_KEY,
-        // Dashboard theme keys are now dynamically fetched by useDashboardTheme, no need to exclude them here manually
-        "linkwarp_dashboard_theme_mode", // Explicitly keeping for safety
-        "linkwarp_dashboard_custom_primary_color", // Explicitly keeping for safety
+        "linkwarp_dashboard_theme_mode", 
+        "linkwarp_dashboard_custom_primary_color",
         JOYRIDE_SAMPLE_TAKEN_KEY,
         JOYRIDE_PRISTINE_TAKEN_KEY,
       ];
@@ -252,10 +248,15 @@ export function DashboardView() {
                 console.warn(`Skipping localStorage key '${key}' as it does not appear to be valid AppData.`);
                 continue;
               }
+              
+              const isEmptyDefaultPage = (!parsedData.linkGroups || parsedData.linkGroups.length === 0) && 
+                                         parsedData.pageTitle === `New ZipGroup Page` && 
+                                         !parsedData.customPrimaryColor;
 
-              if ((!parsedData.linkGroups || parsedData.linkGroups.length === 0) && parsedData.pageTitle === `New ZipGroup Page` && !parsedData.customPrimaryColor) {
+              if (isEmptyDefaultPage) {
                 localStorage.removeItem(key);
                 initialStoredOrder = initialStoredOrder.filter(id => id !== pageId);
+                console.log(`Removed empty default page from localStorage: ${key}`);
                 continue;
               }
 
@@ -334,7 +335,7 @@ export function DashboardView() {
   }, [dashboardThemeMode, dashboardCustomPrimaryColor, isThemeLoading]);
 
   const handleCreateNewPage = () => {
-    createNewBlankPageAndRedirect(); // This function now redirects to /p/[newPageId]
+    createNewBlankPageAndRedirect();
   };
 
   const handleDeletePage = (idToDelete: string) => {
@@ -365,7 +366,6 @@ export function DashboardView() {
         const { lastModified, ...shareableData } = parsedData;
         const jsonString = JSON.stringify(shareableData);
         const encodedJson = encodeURIComponent(jsonString);
-        // Share link points to root with sharedData param
         const shareUrl = `${window.location.origin}/?sharedData=${encodedJson}`;
         await navigator.clipboard.writeText(shareUrl);
         toast({
@@ -403,81 +403,82 @@ export function DashboardView() {
       });
     }
   };
-
-  if (isLoadingData) {
-    return (
-      <div className="min-h-screen flex flex-col">
-         <AppHeader
-            onCreateNewPage={handleCreateNewPage}
-            customPrimaryColor={dashboardCustomPrimaryColor}
-            onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
-            themeMode={dashboardThemeMode}
-            onSetThemeMode={setDashboardThemeMode}
-            showHomePageLink={false}
-            showSamplePageLink={true}
-            showShareButton={false}
-        />
-        <main className="flex-grow container mx-auto p-4 md:p-8">
-          <PageContentSpinner text="Loading your ZipGroup home..." />
-        </main>
-        <AppFooter onCreateNewPage={handleCreateNewPage} />
-      </div>
-    );
-  }
-
+  
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
-        <AppHeader
-            onCreateNewPage={handleCreateNewPage}
-            customPrimaryColor={dashboardCustomPrimaryColor}
-            onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
-            themeMode={dashboardThemeMode}
-            onSetThemeMode={setDashboardThemeMode}
-            showHomePageLink={false} // Already on Home
-            showSamplePageLink={true}
-            showShareButton={false} // No global share for dashboard
-        />
-        <main className="flex-grow container mx-auto p-4 md:p-8">
-          {pages.length === 0 ? (
-            <EmptyStateMessage
-              icon={<PageHomeIcon className="h-16 w-16" />}
-              title="No ZipGroup Pages Yet"
-              description="Looks like your home page is empty. Let's create your first page!"
-              actions={
-                <>
-                  <Button onClick={handleCreateNewPage} size="lg">
-                    <PlusCircle className="mr-2 h-5 w-5" />
-                    Create Your First Page
-                  </Button>
-                  <Button variant="outline" size="lg" asChild>
-                    <Link href="/sample">
-                      <BookOpenCheck className="mr-2 h-5 w-5" />
-                      Explore Sample Page
-                    </Link>
-                  </Button>
-                </>
-              }
-            />
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
-              <SortableContext items={pages.map(p => p.id)} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {pages.map(page => (
-                    <SortablePageCardItem
-                      key={page.id}
-                      page={page}
-                      onDelete={handleDeletePage}
-                      onShare={handleSharePage}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
-        </main>
-         <AppFooter onCreateNewPage={handleCreateNewPage} />
-      </div>
+      {isLoadingData ? (
+        <div className="min-h-screen flex flex-col">
+           <AppHeader
+              onCreateNewPage={handleCreateNewPage}
+              customPrimaryColor={dashboardCustomPrimaryColor}
+              onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
+              themeMode={dashboardThemeMode}
+              onSetThemeMode={setDashboardThemeMode}
+              showHomePageLink={false}
+              showSamplePageLink={true}
+              showShareButton={false}
+          />
+          <main className="flex-grow container mx-auto p-4 md:p-8">
+            <PageContentSpinner text="Loading your ZipGroup home..." />
+          </main>
+          <AppFooter onCreateNewPage={handleCreateNewPage} />
+        </div>
+      ) : (
+        <div className="min-h-screen flex flex-col bg-background text-foreground">
+          <AppHeader
+              onCreateNewPage={handleCreateNewPage}
+              customPrimaryColor={dashboardCustomPrimaryColor}
+              onSetCustomPrimaryColor={setDashboardCustomPrimaryColor}
+              themeMode={dashboardThemeMode}
+              onSetThemeMode={setDashboardThemeMode}
+              showHomePageLink={false}
+              showSamplePageLink={true}
+              showShareButton={false}
+          />
+          <main className="flex-grow container mx-auto p-4 md:p-8">
+            {pages.length === 0 ? (
+              <EmptyStateMessage
+                icon={<PageHomeIcon className="h-16 w-16" />}
+                title="No ZipGroup Pages Yet"
+                description="Looks like your home page is empty. Let's create your first page!"
+                actions={
+                  <>
+                    <Button onClick={handleCreateNewPage} size="lg">
+                      <PlusCircle className="mr-2 h-5 w-5" />
+                      Create Your First Page
+                    </Button>
+                    <Button variant="outline" size="lg" asChild>
+                      <Link href="/sample">
+                        <BookOpenCheck className="mr-2 h-5 w-5" />
+                        Explore Sample Page
+                      </Link>
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPages}>
+                <SortableContext items={pages.map(p => p.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {pages.map(page => (
+                      <SortablePageCardItem
+                        key={page.id}
+                        page={page}
+                        onDelete={handleDeletePage}
+                        onShare={handleSharePage}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </main>
+           <AppFooter onCreateNewPage={handleCreateNewPage} />
+        </div>
+      )}
     </TooltipProvider>
   );
 }
+
+
+    
