@@ -7,6 +7,7 @@ import '@testing-library/jest-dom';
 import { LinkGroupCard } from '../link-group-card';
 import type { LinkGroup } from '@/lib/types';
 import { TooltipProvider } from '@/components/ui/tooltip'; // Import TooltipProvider
+import { normalizeUrl } from '@/lib/utils'; // Import normalizeUrl
 
 const mockToast = jest.fn();
 jest.mock('@/hooks/use-toast', () => ({
@@ -45,7 +46,7 @@ const sampleGroup: LinkGroup = {
   id: '1',
   name: 'Work Links',
   icon: 'Briefcase',
-  urls: ['http://example.com', 'http://test.com', 'http://another.com', 'http://onemore.com'],
+  urls: ['http://example.com', 'test.com', 'another.com', 'onemore.com'], // Mix of URLs
 };
 
 const sampleGroupEmptyUrls: LinkGroup = {
@@ -85,8 +86,8 @@ describe('LinkGroupCard Component', () => {
     expect(screen.getByTestId('lucide-icon-Briefcase')).toBeInTheDocument();
     expect(screen.getByText('4 link(s)')).toBeInTheDocument();
     expect(screen.getByText('http://example.com')).toBeInTheDocument();
-    expect(screen.getByText('http://test.com')).toBeInTheDocument();
-    expect(screen.getByText('http://another.com')).toBeInTheDocument();
+    expect(screen.getByText('test.com')).toBeInTheDocument();
+    expect(screen.getByText('another.com')).toBeInTheDocument();
     expect(screen.getByText('...and 1 more')).toBeInTheDocument();
   });
 
@@ -108,7 +109,7 @@ describe('LinkGroupCard Component', () => {
     expect(mockOnOpen).toHaveBeenCalledWith(sampleGroup);
     expect(window.open).toHaveBeenCalledTimes(sampleGroup.urls.length);
     sampleGroup.urls.forEach(url => {
-      expect(window.open).toHaveBeenCalledWith(`https://${url}`, '_blank'); // normalizeUrl prepends https
+      expect(window.open).toHaveBeenCalledWith(normalizeUrl(url), '_blank');
     });
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
       title: "Links Opening",
