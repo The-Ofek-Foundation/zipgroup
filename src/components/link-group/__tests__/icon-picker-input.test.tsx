@@ -7,36 +7,39 @@ import '@testing-library/jest-dom';
 import { IconPickerInput } from '../icon-picker-input';
 
 // Function to generate the mock icons object.
-// This helps with Jest's hoisting behavior for jest.mock.
-const getMockLucideIcons = () => ({
-  Package: (props: any) => <svg data-testid="lucide-icon-Package" {...props} />,
-  Briefcase: (props: any) => <svg data-testid="lucide-icon-Briefcase" {...props} />,
-  Home: (props: any) => <svg data-testid="lucide-icon-Home" {...props} />,
-  Settings: (props: any) => <svg data-testid="lucide-icon-Settings" {...props} />,
-  FileText: (props: any) => <svg data-testid="lucide-icon-FileText" {...props} />,
-  Users: (props: any) => <svg data-testid="lucide-icon-Users" {...props} />,
-  Link: (props: any) => <svg data-testid="lucide-icon-Link" {...props} />,
-  Folder: (props: any) => <svg data-testid="lucide-icon-Folder" {...props} />,
-  Search: (props: any) => <svg data-testid="lucide-icon-Search" {...props} />,
-  Star: (props: any) => <svg data-testid="lucide-icon-Star" {...props} />,
-  Zap: (props: any) => <svg data-testid="lucide-icon-Zap" {...props} />,
-  Globe: (props: any) => <svg data-testid="lucide-icon-Globe" {...props} />,
-  HelpCircle: (props: any) => <svg data-testid="lucide-icon-HelpCircle" {...props} />, // Default fallback
-  Airplay: (props: any) => <svg data-testid="lucide-icon-Airplay" {...props} />, // For search test
-  AlarmClock: (props: any) => <svg data-testid="lucide-icon-AlarmClock" {...props} />, // For search test
-  Check: (props: any) => <svg data-testid="lucide-icon-Check" {...props} />, // For selected indicator
-});
+// THIS MUST BE A FUNCTION DECLARATION and appear before jest.mock calls that use it.
+function getMockLucideIcons() {
+  return {
+    Package: (props: any) => <svg data-testid="lucide-icon-Package" {...props} />,
+    Briefcase: (props: any) => <svg data-testid="lucide-icon-Briefcase" {...props} />,
+    Home: (props: any) => <svg data-testid="lucide-icon-Home" {...props} />,
+    Settings: (props: any) => <svg data-testid="lucide-icon-Settings" {...props} />,
+    FileText: (props: any) => <svg data-testid="lucide-icon-FileText" {...props} />,
+    Users: (props: any) => <svg data-testid="lucide-icon-Users" {...props} />,
+    Link: (props: any) => <svg data-testid="lucide-icon-Link" {...props} />,
+    Folder: (props: any) => <svg data-testid="lucide-icon-Folder" {...props} />,
+    Search: (props: any) => <svg data-testid="lucide-icon-Search" {...props} />,
+    Star: (props: any) => <svg data-testid="lucide-icon-Star" {...props} />,
+    Zap: (props: any) => <svg data-testid="lucide-icon-Zap" {...props} />,
+    Globe: (props: any) => <svg data-testid="lucide-icon-Globe" {...props} />,
+    HelpCircle: (props: any) => <svg data-testid="lucide-icon-HelpCircle" {...props} />, // Default fallback
+    Airplay: (props: any) => <svg data-testid="lucide-icon-Airplay" {...props} />, // For search test
+    AlarmClock: (props: any) => <svg data-testid="lucide-icon-AlarmClock" {...props} />, // For search test
+    Check: (props: any) => <svg data-testid="lucide-icon-Check" {...props} />, // For selected indicator
+  };
+}
 
 // Mock 'lucide-react'
 // Jest hoists jest.mock calls. The factory function is executed when the mock is prepared.
-// Calling getMockLucideIcons() inside ensures the object is created at that point.
 jest.mock('lucide-react', () => {
   const original = jest.requireActual('lucide-react');
+  // Calling getMockLucideIcons() inside ensures the object is created at that point.
+  const icons = getMockLucideIcons();
   return {
     ...original,
-    icons: getMockLucideIcons(), // Call the function to get icons
+    icons: icons,
     // Also explicitly mock the Check component from lucide-react if it's directly imported by IconPickerInput
-    Check: (props: any) => <svg data-testid="lucide-icon-Check" {...props} />,
+    Check: icons.Check,
   };
 });
 
@@ -138,11 +141,7 @@ describe('IconPickerInput Component', () => {
     // So, we search for that test ID.
     const checkIcon = await screen.findByTestId('lucide-icon-Check');
     expect(checkIcon).toBeInTheDocument();
-    // Check if it's a child of the star button, or at least associated.
-    // This can be tricky. If the class `bg-primary/10` is only on the selected button,
-    // and the check mark is only rendered for the selected button, this is a good indication.
+    // Check if it's a child of the star button.
     expect(starIconButtonInPopover.contains(checkIcon)).toBe(true);
   });
 });
-
-    
