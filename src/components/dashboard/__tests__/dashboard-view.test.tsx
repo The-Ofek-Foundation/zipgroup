@@ -84,11 +84,6 @@ const mockWriteText = jest.fn().mockResolvedValue(undefined);
 const setupWindowMocks = () => {
   Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true, configurable: true });
   Object.defineProperty(window, 'matchMedia', { value: mockMatchMedia, writable: true, configurable: true });
-  Object.defineProperty(navigator, 'clipboard', {
-    value: { writeText: mockWriteText },
-    writable: true,
-    configurable: true, // Allow userEvent to redefine it
-  });
 };
 
 const renderDashboard = () => {
@@ -123,6 +118,9 @@ describe('DashboardView Component', () => {
     mockLocalStorage.setItem.mockImplementation((key: string, value: string) => { store[key] = value; });
     mockLocalStorage.removeItem.mockImplementation((key: string) => { delete store[key]; });
     
+    // Note: user-event library sets up its own navigator.clipboard mock during setup()
+    // We'll override the writeText method in individual tests after user.setup()
+    
     mockMatchMedia.mockClear().mockImplementation(query => ({
       matches: false, media: query, onchange: null, addListener: jest.fn(), removeListener: jest.fn(),
       addEventListener: jest.fn(), removeEventListener: jest.fn(), dispatchEvent: jest.fn(),
@@ -134,6 +132,31 @@ describe('DashboardView Component', () => {
     mockRouterPush.mockClear();
     mockWriteText.mockClear();
     mockDashboardThemeIsLoading = false;
+    
+    // Suppress console warnings for Radix UI accessibility warnings in tests
+    jest.spyOn(console, 'error').mockImplementation((message) => {
+      if (typeof message === 'string' && (
+        (message.includes('DialogContent') && message.includes('DialogTitle')) ||
+        (message.includes('Unknown event handler property'))
+      )) {
+        return;
+      }
+      console.error(message);
+    });
+    
+    jest.spyOn(console, 'warn').mockImplementation((message) => {
+      if (typeof message === 'string' && message.includes('Missing') && message.includes('Description')) {
+        return;
+      }
+      console.warn(message);
+    });
+    
+    // Don't suppress console.log for now
+    // jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   test('shows loading spinner when dashboard theme is loading', async () => {
@@ -181,7 +204,7 @@ describe('DashboardView Component', () => {
     const pageOneCard = await screen.findByText('Page One');
     expect(pageOneCard).toBeInTheDocument();
 
-    const cardForPageOne = screen.getByText('Page One').closest('div[class*="card"]');
+    const cardForPageOne = screen.getByText('Page One').closest('div[class*="card"]') as HTMLElement;
     if (!cardForPageOne) throw new Error("Could not find card for Page One");
 
     const deleteButton = within(cardForPageOne).getByRole('button', { name: /delete page Page One/i });
@@ -202,19 +225,31 @@ describe('DashboardView Component', () => {
   });
 
   test('handles page sharing correctly', async () => {
+    // Setup user-event first - it will set up its own clipboard mock
     const user = userEvent.setup();
-    mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`, JSON.stringify(samplePage1Data));
+    
+    // Now override the clipboard.writeText method with our own mock after user-event has set it up
+    Object.defineProperty(navigator.clipboard, 'writeText', {
+      value: mockWriteText,
+      writable: true,
+      configurable: true,
+    });
+    
+    // Make sure the data exists in the store first
+    store[`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`] = JSON.stringify(samplePage1Data);
+    
+    // Mock window.location for the share URL creation
+    delete (window as any).location;
+    (window as any).location = { origin: 'http://localhost:3000' };
     
     renderDashboard();
     const pageOneCard = await screen.findByText('Page One');
     expect(pageOneCard).toBeInTheDocument();
-    
-    const cardForPageOne = screen.getByText('Page One').closest('div[class*="card"]');
-    if (!cardForPageOne) throw new Error("Could not find card for Page One for sharing");
 
-    const shareButton = within(cardForPageOne).getByRole('button', { name: /share page Page One/i });
+    const shareButton = screen.getByRole('button', { name: /share page Page One/i });
     await user.click(shareButton);
 
+    // Wait for the clipboard and toast operations to complete
     await waitFor(() => {
       expect(mockWriteText).toHaveBeenCalledTimes(1);
     });
@@ -225,7 +260,10 @@ describe('DashboardView Component', () => {
     const expectedShareUrl = `${window.location.origin}/import?sharedData=${encodedJson}`;
     
     expect(mockWriteText).toHaveBeenCalledWith(expectedShareUrl);
-    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Share Link Copied!" }));
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ 
+      title: "Share Link Copied!",
+      description: "The link to share this page has been copied to your clipboard."
+    }));
   });
 
   test('applies theme and custom color from useDashboardTheme', async () => {
@@ -257,26 +295,34 @@ describe('DashboardView Component', () => {
       theme: 'light',
       customPrimaryColor: undefined,
     };
-    mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`, JSON.stringify(emptyDefaultPage));
-    mockLocalStorage.setItem(`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`, JSON.stringify(samplePage1Data));
-    mockLocalStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(['emptyId', 'id1']));
+    
+    // Set up localStorage data BEFORE rendering - this is key for auto-delete to work
+    store[`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`] = JSON.stringify(emptyDefaultPage);
+    store[`${LOCAL_STORAGE_PREFIX_DASHBOARD}id1`] = JSON.stringify(samplePage1Data);
+    store[DASHBOARD_ORDER_KEY] = JSON.stringify(['emptyId', 'id1']);
 
     renderDashboard();
 
+    // Wait for auto-deletion to complete - the empty page should be removed
     await waitFor(() => {
-        expect(screen.queryByText("New ZipGroup Page")).not.toBeInTheDocument();
+        expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`);
     });
-    await waitFor(() => { // Added waitFor for "Page One"
+
+    // Page One should be displayed after the empty page is removed
+    await waitFor(() => {
       expect(screen.getByText("Page One")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     
-    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(`${LOCAL_STORAGE_PREFIX_DASHBOARD}emptyId`);
+    // Verify the empty page is not displayed
+    expect(screen.queryByText("New ZipGroup Page")).not.toBeInTheDocument();
+    
+    // Verify that the dashboard order was updated to exclude the deleted page
     await waitFor(() => {
-        const orderSetCall = mockLocalStorage.setItem.mock.calls.find(call => call[0] === DASHBOARD_ORDER_KEY && JSON.parse(call[1]).includes('id1'));
+        const orderSetCall = mockLocalStorage.setItem.mock.calls.find(call => 
+          call[0] === DASHBOARD_ORDER_KEY && 
+          call[1] === JSON.stringify(['id1'])
+        );
         expect(orderSetCall).toBeDefined();
-        if(orderSetCall) {
-            expect(JSON.parse(orderSetCall[1])).toEqual(['id1']);
-        }
     });
   });
   
@@ -310,8 +356,8 @@ jest.mock('@/components/layout/app-header', () => ({
     onInitiateDelete,
     canDeleteCurrentPage,
     joyrideProps
-  }) => <div data-testid="app-header" customprimarycolor={customPrimaryColor} thememode={themeMode}>Mock AppHeader</div>),
+  }) => <div data-testid="app-header" data-customprimarycolor={customPrimaryColor} data-thememode={themeMode}>Mock AppHeader</div>),
 }));
 jest.mock('@/components/layout/app-footer', () => ({
-  AppFooter: jest.fn((props) => <div data-testid="app-footer" {...props}>Mock AppFooter</div>),
+  AppFooter: jest.fn(({ onCreateNewPage, ...props }) => <div data-testid="app-footer" {...props}>Mock AppFooter</div>),
 }));

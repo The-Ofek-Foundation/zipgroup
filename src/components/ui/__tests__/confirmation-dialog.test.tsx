@@ -35,6 +35,25 @@ describe('ConfirmationDialog Component', () => {
     // Reset mocks before each test
     mockOnConfirm.mockClear();
     mockOnOpenChange.mockClear();
+    
+    // Suppress console warnings for Radix UI accessibility warnings in tests
+    jest.spyOn(console, 'error').mockImplementation((message) => {
+      if (typeof message === 'string' && message.includes('DialogContent') && message.includes('DialogTitle')) {
+        return;
+      }
+      console.error(message);
+    });
+    
+    jest.spyOn(console, 'warn').mockImplementation((message) => {
+      if (typeof message === 'string' && message.includes('Missing') && message.includes('Description')) {
+        return;
+      }
+      console.warn(message);
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   test('renders with default props when open is true', () => {

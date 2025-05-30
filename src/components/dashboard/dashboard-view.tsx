@@ -217,11 +217,15 @@ export function DashboardView() {
   useEffect(() => {
     const allLoadedPages: StoredPage[] = [];
     let initialStoredOrder: string[] = [];
+    let originalStoredOrderLength = 0;
 
     if (typeof window !== 'undefined') {
       try {
         const orderJson = localStorage.getItem(DASHBOARD_ORDER_KEY);
-        if (orderJson) initialStoredOrder = JSON.parse(orderJson);
+        if (orderJson) {
+          initialStoredOrder = JSON.parse(orderJson);
+          originalStoredOrderLength = initialStoredOrder.length;
+        }
       } catch (error) { console.error("Failed to parse page order from local storage:", error); }
 
       const excludedKeys = [
@@ -232,10 +236,15 @@ export function DashboardView() {
         // JOYRIDE_PRISTINE_TAKEN_KEY, // Not used here
       ];
 
+      // Collect all localStorage keys first to avoid iteration issues when keys are deleted
+      const allKeys: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
+        if (key) allKeys.push(key);
+      }
+
+      for (const key of allKeys) {
         if (
-          key &&
           key.startsWith(LOCAL_STORAGE_PREFIX_DASHBOARD) &&
           !excludedKeys.includes(key)
         ) {
@@ -259,7 +268,6 @@ export function DashboardView() {
               if (isEmptyDefaultPage) {
                 localStorage.removeItem(key);
                 initialStoredOrder = initialStoredOrder.filter(id => id !== pageId);
-                console.log(`Removed empty default page from localStorage: ${key}`);
                 continue;
               }
 
@@ -281,7 +289,7 @@ export function DashboardView() {
       const existingPageIds = new Set(allLoadedPages.map(p => p.id));
       const validStoredOrder = initialStoredOrder.filter(id => existingPageIds.has(id));
 
-      if (validStoredOrder.length !== initialStoredOrder.length) {
+      if (validStoredOrder.length !== originalStoredOrderLength) {
          localStorage.setItem(DASHBOARD_ORDER_KEY, JSON.stringify(validStoredOrder));
       }
 

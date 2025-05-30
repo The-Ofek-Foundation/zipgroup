@@ -31,3 +31,26 @@ if (typeof window !== 'undefined') {
     disconnect: jest.fn(),
   }));
 }
+
+// Ensure navigator.clipboard exists in test environment
+if (typeof global.navigator === 'undefined') {
+  (global as any).navigator = {};
+}
+
+// Mock navigator.clipboard globally for all tests
+Object.defineProperty(global.navigator, 'clipboard', {
+  value: {
+    writeText: jest.fn().mockResolvedValue(undefined),
+  },
+  writable: true,
+  configurable: true,
+});
+
+// Also mock for window if it exists
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'navigator', {
+    value: global.navigator,
+    writable: true,
+    configurable: true,
+  });
+}
