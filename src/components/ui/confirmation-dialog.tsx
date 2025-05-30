@@ -43,10 +43,11 @@ export function ConfirmationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      {/* Added role="dialog" and aria-labelledby/describedby for better accessibility in tests */}
+      <DialogContent aria-labelledby="confirmation-dialog-title" aria-describedby="confirmation-dialog-description">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle id="confirmation-dialog-title">{title}</DialogTitle>
+          <DialogDescription id="confirmation-dialog-description">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isConfirming}>
@@ -61,3 +62,4 @@ export function ConfirmationDialog({
     </Dialog>
   );
 }
+
