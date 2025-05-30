@@ -50,7 +50,7 @@ export function LinkGroupFormDialog({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting }, // Added isSubmitting
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
     defaultValues: {
@@ -140,10 +140,10 @@ export function LinkGroupFormDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" data-joyride="group-form-save-button">Save Group</Button>
+            <Button type="submit" data-joyride="group-form-save-button" disabled={isSubmitting}>Save Group</Button>
           </DialogFooter>
         </form>
       </DialogContent>
