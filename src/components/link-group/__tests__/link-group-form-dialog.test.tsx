@@ -108,7 +108,6 @@ describe('LinkGroupFormDialog Component', () => {
     render(<LinkGroupFormDialog {...defaultProps} />);
     await user.click(screen.getByRole('button', { name: 'Save Group' }));
 
-    // Check for specific error messages
     expect(await screen.findByText('Group name is required')).toBeInTheDocument();
     // The form initializes with one empty URL input. So the error should be for that field.
     expect(await screen.findByText(/URL field cannot be empty/i)).toBeInTheDocument();
