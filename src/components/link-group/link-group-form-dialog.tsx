@@ -50,13 +50,13 @@ export function LinkGroupFormDialog({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting }, // Added isSubmitting
+    formState: { errors, isSubmitting }, 
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
-    defaultValues: { // Default values for create mode or if initialData is sparse
+    defaultValues: { 
       name: "",
       icon: "Package", 
-      urls: [""], // Start with one empty URL field
+      urls: [""], 
     },
   });
 
@@ -70,15 +70,17 @@ export function LinkGroupFormDialog({
           urls: initialData.urls.length > 0 ? initialData.urls : [""],
         });
       } else {
-        reset({ // Reset to defaults for "create" mode
+        reset({ 
           name: "",
           icon: "Package", 
           urls: [""],
         });
       }
     }
-  // Updated dependency array
-  }, [isOpen, initialData, reset]);
+  // More granular dependencies: re-run if isOpen changes, or if the ID of the initialData changes,
+  // or if other key fields of initialData change. This makes it more stable against
+  // simple reference changes of the initialData object if its content is the same.
+  }, [isOpen, initialData?.id, initialData?.name, initialData?.icon, JSON.stringify(initialData?.urls), reset]);
 
   const handleFormSubmit = (data: LinkGroupFormData) => {
     onSubmit({
