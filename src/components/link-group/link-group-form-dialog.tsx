@@ -50,7 +50,7 @@ export function LinkGroupFormDialog({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting }, // Added isSubmitting
+    formState: { errors, isSubmitting },
   } = useForm<LinkGroupFormData>({
     resolver: zodResolver(linkGroupSchema),
     defaultValues: {
@@ -77,7 +77,16 @@ export function LinkGroupFormDialog({
         });
       }
     }
-  }, [initialData, reset, isOpen]);
+  // Make dependencies more granular to avoid unnecessary resets if initialData object reference changes but content is the same.
+  // JSON.stringify for urls array ensures deep comparison for that part.
+  }, [
+    isOpen,
+    initialData?.id, 
+    initialData?.name, 
+    initialData?.icon, 
+    JSON.stringify(initialData?.urls), // Compare actual URL content
+    reset
+  ]);
 
   const handleFormSubmit = (data: LinkGroupFormData) => {
     onSubmit({
